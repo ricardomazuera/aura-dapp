@@ -27,6 +27,16 @@ const nextConfig = {
         hostname: "img.starkurabu.com",
         pathname: "/**",
       },
+      {
+        protocol: "https",
+        hostname: "www.gstatic.com",
+        pathname: "/firebasejs/ui/2.0.0/images/auth/**",
+      },
+      {
+        protocol: "https",
+        hostname: "www.gravatar.com",
+        pathname: "/avatar/**",
+      }
     ],
   },
   typescript: {

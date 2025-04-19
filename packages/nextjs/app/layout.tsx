@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 import { ScaffoldStarkAppWithProviders } from "~~/components/ScaffoldStarkAppWithProviders";
 import "~~/styles/globals.css";
 import { ThemeProvider } from "~~/components/ThemeProvider";
+import { Providers } from "~~/components/ChipiWallet";
+
 
 export const metadata: Metadata = {
-  title: "Scaffold-Stark",
-  description: "Fast track your starknet journey",
-  icons: "/logo.ico",
+  title: 'Aura - Transform Your Energy',
+  description: 'Transform your energy through daily rituals',
+  icons: "/aura-icon.svg",
 };
 
 const ScaffoldStarkApp = ({ children }: { children: React.ReactNode }) => {

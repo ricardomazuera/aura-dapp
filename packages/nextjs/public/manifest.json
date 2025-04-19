@@ -9,13 +9,13 @@
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/logo.ico",
+      "src": "/aura-icon.svg",
       "sizes": "64x64",
       "type": "image/x-icon",
       "purpose": "any maskable"
     },
     {
-      "src": "/logo.svg",
+      "src": "/aura-icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"

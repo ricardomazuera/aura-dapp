@@ -29,9 +29,16 @@
     "verify": "yarn workspace @ss-2/snfoundry verify"
   },
   "dependencies": {
-    "postcss": "^8.4.38"
+    "@chipi-pay/chipi-sdk": "^2.0.4",
+    "@supabase/auth-helpers-nextjs": "^0.10.0",
+    "@supabase/supabase-js": "^2.49.4",
+    "framer-motion": "^12.7.4",
+    "lucide-react": "^0.501.0",
+    "postcss": "^8.4.38",
+    "qs": "^6.14.0"
   },
   "devDependencies": {
+    "@types/qs": "^6",
     "daisyui": "^4.7.3",
     "husky": "^9.0.11",
     "pinst": "^3.0.0",
