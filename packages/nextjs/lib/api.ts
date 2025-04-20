@@ -99,3 +99,32 @@ export const updateHabitProgress = async (token: string, habitId: string): Promi
     throw error;
   }
 };
+
+/**
+ * Sends user information to the backend to create a wallet
+ * @param userId The Supabase user ID
+ * @param email The user's email
+ * @returns The server response with information about the created or existing wallet
+ */
+export const createOrGetUserWallet = async (userId: string, email: string, accessToken: string) => {
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`
+      },
+      body: JSON.stringify({ userId, email })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Failed to parse error' }));
+      throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error creating/getting wallet:', error);
+    throw error;
+  }
+};
