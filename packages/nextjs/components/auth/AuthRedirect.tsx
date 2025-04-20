@@ -12,27 +12,48 @@ interface AuthRedirectProps {
 
 export function AuthRedirect({ children, protectedRoute, redirectPath }: AuthRedirectProps) {
   const router = useRouter();
-  const { user, isLoading, checkSession } = useAuthStore();
-  const [isRedirecting, setIsRedirecting] = useState(false);
+  const { user, isLoading, checkSession, getToken } = useAuthStore();
   const [checkComplete, setCheckComplete] = useState(false);
 
+  // Verify if the user should be redirected based on authentication state
+  const shouldRedirect = protectedRoute ? !user : !!user;
+  
   useEffect(() => {
-    const checkAuthentication = async () => {
+    let isMounted = true;
+    
+    const checkAndRedirect = async () => {
       try {
+        // Quick first check: verify if there's a token in localStorage
+        const token = getToken();
+        
+        // If it's a public route (HomeRedirect) and there's a token, redirect immediately without waiting
+        if (!protectedRoute && token) {
+          console.log('AuthRedirect: Token found in localStorage, redirecting immediately');
+          router.replace(redirectPath);
+          return;
+        }
+        
+        // If it's a protected route and there's no token, redirect immediately to login
+        if (protectedRoute && !token) {
+          console.log('AuthRedirect: No token found for protected route, redirecting immediately');
+          router.replace(redirectPath);
+          return;
+        }
+        
         console.log(`AuthRedirect (${protectedRoute ? 'protected' : 'public'}): Checking session`);
-        // Ensure that you have the most up-to-date user information
+        
+        // Verify session to get updated data
         await checkSession();
+        
+        if (!isMounted) return;
         
         console.log(`AuthRedirect (${protectedRoute ? 'protected' : 'public'}): Session check complete, user:`, !!user);
         setCheckComplete(true);
         
-        // Determine if we should redirect based on the route type and user state
-        const shouldRedirect = protectedRoute ? !user : !!user;
-        
+        // Check if we should redirect after verifying the session
         if (shouldRedirect) {
           console.log(`AuthRedirect (${protectedRoute ? 'protected' : 'public'}): Redirecting to ${redirectPath}`);
-          setIsRedirecting(true);
-          router.push(redirectPath);
+          router.replace(redirectPath); // Use replace instead of push to avoid history issues
         }
       } catch (error) {
         console.error(`Error in AuthRedirect (${protectedRoute ? 'protected' : 'public'}):`, error);
@@ -40,34 +61,31 @@ export function AuthRedirect({ children, protectedRoute, redirectPath }: AuthRed
       }
     };
     
-    if (!checkComplete && !isRedirecting) {
-      checkAuthentication();
+    // Only verify if the check hasn't been completed yet
+    if (!checkComplete) {
+      checkAndRedirect();
+    } 
+    // If verification is complete and we should redirect, do it
+    else if (shouldRedirect) {
+      router.replace(redirectPath);
     }
-  }, [protectedRoute, redirectPath, router, user, checkSession, checkComplete, isRedirecting]);
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [protectedRoute, redirectPath, router, user, checkSession, checkComplete, shouldRedirect, getToken]);
 
-  // Show spinner while checking authentication or loading
+  // If we're loading or checking the session, show spinner
   if (isLoading || !checkComplete) {
     return renderLoadingSpinner();
   }
 
-  // If redirecting, show spinner
-  if (isRedirecting) {
-    return renderLoadingSpinner();
-  }
-
-  // If the user state doesn't match what we expect for this route type,
-  // try to redirect again if for some reason it didn't redirect before
-  const shouldBeRedirected = protectedRoute ? !user : !!user;
-  if (shouldBeRedirected) {
-    if (!isRedirecting) {
-      router.push(redirectPath);
-      setIsRedirecting(true);
-    }
-    
+  // If we should redirect but it hasn't completed yet, show spinner
+  if (shouldRedirect) {
     return renderLoadingSpinner();
   }
   
-  // If the user state is as expected for this route type, show the content
+  // If everything is in order and we don't need to redirect, show the content
   return <>{children}</>;
 }
 

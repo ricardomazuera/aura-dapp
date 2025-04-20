@@ -17,14 +17,18 @@ interface AuthState {
   handleAuthRedirect: () => Promise<void>;
   isWalletCreated: boolean;
   getToken: () => string | null;
+  isCheckingSession: boolean;
+  lastSessionCheck: number;
 }
 
+// Helper to save the token in localStorage
 const saveTokenToStorage = (token: string) => {
   if (typeof window !== 'undefined') {
     localStorage.setItem('aura_token', token);
   }
 };
 
+// Helper to get token from localStorage
 const getTokenFromStorage = (): string | null => {
   if (typeof window !== 'undefined') {
     return localStorage.getItem('aura_token');
@@ -32,11 +36,15 @@ const getTokenFromStorage = (): string | null => {
   return null;
 };
 
+// Helper to remove token from localStorage
 const removeTokenFromStorage = () => {
   if (typeof window !== 'undefined') {
     localStorage.removeItem('aura_token');
   }
 };
+
+// Minimum time between session checks (5 seconds)
+const SESSION_CHECK_COOLDOWN = 5000;
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
@@ -44,7 +52,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isLoading: false,
   error: null,
   isWalletCreated: false,
+  isCheckingSession: false,
+  lastSessionCheck: 0,
   
+  // Method to get the current token
   getToken: () => getTokenFromStorage(),
   
   // Function to handle auth redirects and new user setup
@@ -62,11 +73,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return;
       }
       
+      // Save token in localStorage
       if (session.access_token) {
         saveTokenToStorage(session.access_token);
       }
       
       try {
+        // Single call to getUserRole
         const userWithRole = await getUserRole(session.access_token);
         set({ 
           user: {
@@ -77,50 +90,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           session 
         });
         
-        // Call the backend endpoint to create or get the user's wallet
+        // Single call to createOrGetUserWallet using cache internally
         const walletResponse = await createOrGetUserWallet(
           userWithRole.id, 
           userWithRole.email, 
           session.access_token
         );
         
-        // If the response was successful, mark the wallet as created
+        // If the response was successful, mark wallet as created
         if (walletResponse.success) {
           set({ isWalletCreated: true });
-          
-            // If necessary, we could store more wallet information in the state here
-            console.log('Wallet created or retrieved successfully:', walletResponse.wallet);
+          console.log('Wallet ready');
         }
         
         // Redirect to dashboard after everything is set up
         window.location.href = `${window.location.origin}/dashboard`;
-      } catch (roleError) {
-        console.error('Error getting user role:', roleError);
-        set({ 
-          user: {
-            id: session.user.id,
-            email: session.user.email as string,
-            role: 'free'
-          },
-          session 
-        });
-        
-        // Still try to create/get the wallet even if getting the role failed
-        try {
-          const walletResponse = await createOrGetUserWallet(
-            session.user.id, 
-            session.user.email as string, 
-            session.access_token
-          );
-          
-          if (walletResponse.success) {
-            set({ isWalletCreated: true });
-          }
-        } catch (walletError) {
-          console.error('Error creating/getting wallet:', walletError);
-        }
-        
-        // Redirect to dashboard after everything is set up
+      } catch (error) {
+        console.error('Error in auth redirect flow:', error);
+        // Redirect to dashboard even if there are errors, to avoid blocking the user
         window.location.href = `${window.location.origin}/dashboard`;
       }
     } catch (error) {
@@ -165,6 +152,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
       if (error) throw error;
       
+      // Remove token from localStorage when signing out
       removeTokenFromStorage();
       
       set({ user: null, session: null });
@@ -177,20 +165,44 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
   
   checkSession: async () => {
+    // Prevent multiple simultaneous session checks
+    if (get().isCheckingSession) {
+      return;
+    }
+    
+    // Prevent too frequent session checks
+    const now = Date.now();
+    if (now - get().lastSessionCheck < SESSION_CHECK_COOLDOWN) {
+      return;
+    }
+    
     try {
-      set({ isLoading: true, error: null });
+      set({ isCheckingSession: true, lastSessionCheck: now });
+      
+      // Only set isLoading if we don't have user data yet
+      if (!get().user) {
+        set({ isLoading: true });
+      }
       
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
       if (sessionError) throw sessionError;
       
       if (session) {
-        // Update the token in localStorage on each valid session
+        // Update token in localStorage with each valid session
         if (session.access_token) {
           saveTokenToStorage(session.access_token);
         }
         
+        // If we already have user data and the ID matches, we don't need to reload the profile
+        if (get().user && get().user.id === session.user.id) {
+          // Only update the session
+          set({ session });
+          return;
+        }
+        
         try {
+          // Single call to get the role and save in cache
           const userWithRole = await getUserRole(session.access_token);
           set({ 
             user: {
@@ -201,7 +213,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             session 
           });
           
-          // Verify the wallet status in the backend
+          // Check wallet status (will use cache if available)
           try {
             const walletResponse = await createOrGetUserWallet(
               userWithRole.id, 
@@ -215,6 +227,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           }
         } catch (roleError) {
           console.error('Error getting user role:', roleError);
+          
+          // Basic user information if we can't get the role
           set({ 
             user: {
               id: session.user.id,
@@ -232,7 +246,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ error: (error as Error).message });
       console.error('Error checking session:', error);
     } finally {
-      set({ isLoading: false });
+      set({ isLoading: false, isCheckingSession: false });
     }
   }
 }));
