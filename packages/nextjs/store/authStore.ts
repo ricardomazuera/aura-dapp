@@ -16,7 +16,27 @@ interface AuthState {
   checkSession: () => Promise<void>;
   handleAuthRedirect: () => Promise<void>;
   isWalletCreated: boolean;
+  getToken: () => string | null;
 }
+
+const saveTokenToStorage = (token: string) => {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('aura_token', token);
+  }
+};
+
+const getTokenFromStorage = (): string | null => {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('aura_token');
+  }
+  return null;
+};
+
+const removeTokenFromStorage = () => {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('aura_token');
+  }
+};
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
@@ -24,6 +44,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isLoading: false,
   error: null,
   isWalletCreated: false,
+  
+  getToken: () => getTokenFromStorage(),
   
   // Function to handle auth redirects and new user setup
   handleAuthRedirect: async () => {
@@ -40,6 +62,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return;
       }
       
+      if (session.access_token) {
+        saveTokenToStorage(session.access_token);
+      }
+      
       try {
         const userWithRole = await getUserRole(session.access_token);
         set({ 
@@ -52,7 +78,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         });
         
         // Call the backend endpoint to create or get the user's wallet
-
         const walletResponse = await createOrGetUserWallet(
           userWithRole.id, 
           userWithRole.email, 
@@ -60,13 +85,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         );
         
         // If the response was successful, mark the wallet as created
-
         if (walletResponse.success) {
           set({ isWalletCreated: true });
           
             // If necessary, we could store more wallet information in the state here
-
-          console.log('Wallet created or retrieved successfully:', walletResponse.wallet);
+            console.log('Wallet created or retrieved successfully:', walletResponse.wallet);
         }
         
         // Redirect to dashboard after everything is set up
@@ -83,7 +106,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         });
         
         // Still try to create/get the wallet even if getting the role failed
-
         try {
           const walletResponse = await createOrGetUserWallet(
             session.user.id, 
@@ -142,6 +164,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
       });
       if (error) throw error;
+      
+      removeTokenFromStorage();
+      
       set({ user: null, session: null });
     } catch (error) {
       set({ error: (error as Error).message });
@@ -160,6 +185,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (sessionError) throw sessionError;
       
       if (session) {
+        // Update the token in localStorage on each valid session
+        if (session.access_token) {
+          saveTokenToStorage(session.access_token);
+        }
+        
         try {
           const userWithRole = await getUserRole(session.access_token);
           set({ 
@@ -171,8 +201,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             session 
           });
           
-            // Check wallet status in the backend
-
+          // Verify the wallet status in the backend
           try {
             const walletResponse = await createOrGetUserWallet(
               userWithRole.id, 
@@ -196,6 +225,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           });
         }
       } else {
+        removeTokenFromStorage();
         set({ user: null, session: null });
       }
     } catch (error) {

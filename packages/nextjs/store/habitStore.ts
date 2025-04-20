@@ -29,9 +29,9 @@ export const useHabitStore = create<HabitState>((set, get) => ({
   clearError: () => set({ error: null }),
   
   fetchHabits: async () => {
-    const { session } = useAuthStore.getState();
+    const { user, getToken } = useAuthStore.getState();
     
-    if (!session) {
+    if (!user) {
       console.warn('Attempting to fetch habits without authentication');
       set({ error: 'User not authenticated' });
       return;
@@ -39,10 +39,13 @@ export const useHabitStore = create<HabitState>((set, get) => ({
     
     try {
       set({ isLoading: true, error: null });
-      console.log('Fetching habits with token:', session.access_token);
       
-      const habits = await getHabits(session.access_token);
-      console.log('Habits received:', habits);
+      const token = getToken();
+      if (!token) {
+        throw new Error('Authentication token not found');
+      }
+      
+      const habits = await getHabits(token);
       
       set({ habits });
     } catch (error) {
@@ -54,8 +57,8 @@ export const useHabitStore = create<HabitState>((set, get) => ({
   },
   
   addHabit: async (name: string) => {
-    const { session } = useAuthStore.getState();
-    if (!session) {
+    const { user, getToken } = useAuthStore.getState();
+    if (!user) {
       console.warn('Attempting to add habit without authentication');
       set({ error: 'User not authenticated' });
       return null;
@@ -69,8 +72,12 @@ export const useHabitStore = create<HabitState>((set, get) => ({
         return null;
       }
       
-      const newHabit = await createHabit(session.access_token, name);
-      console.log('New habit created:', newHabit);
+      const token = getToken();
+      if (!token) {
+        throw new Error('Authentication token not found');
+      }
+      
+      const newHabit = await createHabit(name, token);
       
       // Update the habits list with the new one
       set(state => ({ habits: [...state.habits, newHabit] }));
@@ -85,8 +92,8 @@ export const useHabitStore = create<HabitState>((set, get) => ({
   },
   
   updateProgress: async (habitId: string) => {
-    const { session } = useAuthStore.getState();
-    if (!session) {
+    const { user, getToken } = useAuthStore.getState();
+    if (!user) {
       console.warn('Attempting to update habit without authentication');
       set({ error: 'User not authenticated' });
       return null;
@@ -94,8 +101,13 @@ export const useHabitStore = create<HabitState>((set, get) => ({
     
     try {
       set({ isLoading: true, error: null });
-      const updatedHabit = await updateHabitProgress(session.access_token, habitId);
-      console.log('Habit progress updated:', updatedHabit);
+      
+      const token = getToken();
+      if (!token) {
+        throw new Error('Authentication token not found');
+      }
+      
+      const updatedHabit = await updateHabitProgress(habitId, token);
       
       // Update the habit in the store
       set(state => ({

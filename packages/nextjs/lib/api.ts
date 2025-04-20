@@ -15,14 +15,28 @@ export interface Habit {
   createdAt: string;
 }
 
-export const getUserRole = async (token: string): Promise<User> => {
+// Helper para obtener el token del localStorage
+const getAuthToken = (): string | null => {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('aura_token');
+  }
+  return null;
+};
+
+// Helper para crear headers de autenticación
+const createAuthHeaders = (providedToken?: string) => {
+  const token = providedToken || getAuthToken();
+  return {
+    'Authorization': token ? `Bearer ${token}` : '',
+    'Content-Type': 'application/json'
+  };
+};
+
+export const getUserRole = async (token?: string): Promise<User> => {
   try {
     const response = await fetch(`${API_URL}/api/user/role`, {
       method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
+      headers: createAuthHeaders(token)
     });
     
     if (!response.ok) {
@@ -36,14 +50,11 @@ export const getUserRole = async (token: string): Promise<User> => {
   }
 };
 
-export const getHabits = async (token: string): Promise<Habit[]> => {
+export const getHabits = async (token?: string): Promise<Habit[]> => {
   try {
     const response = await fetch(`${API_URL}/api/habits`, {
       method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
+      headers: createAuthHeaders(token)
     });
     
     if (!response.ok) {
@@ -57,14 +68,11 @@ export const getHabits = async (token: string): Promise<Habit[]> => {
   }
 };
 
-export const createHabit = async (token: string, name: string): Promise<Habit> => {
+export const createHabit = async (name: string, token?: string): Promise<Habit> => {
   try {
     const response = await fetch(`${API_URL}/api/habits`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
+      headers: createAuthHeaders(token),
       body: JSON.stringify({ name })
     });
     
@@ -79,14 +87,11 @@ export const createHabit = async (token: string, name: string): Promise<Habit> =
   }
 };
 
-export const updateHabitProgress = async (token: string, habitId: string): Promise<Habit> => {
+export const updateHabitProgress = async (habitId: string, token?: string): Promise<Habit> => {
   try {
     const response = await fetch(`${API_URL}/api/habits/${habitId}/progress`, {
       method: 'PUT',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
+      headers: createAuthHeaders(token)
     });
     
     if (!response.ok) {
@@ -101,19 +106,17 @@ export const updateHabitProgress = async (token: string, habitId: string): Promi
 };
 
 /**
- * Sends user information to the backend to create a wallet
- * @param userId The Supabase user ID
- * @param email The user's email
- * @returns The server response with information about the created or existing wallet
+ * Envía la información del usuario al backend para crear una wallet
+ * @param userId El ID del usuario de Supabase
+ * @param email El correo del usuario
+ * @param accessToken Token de acceso (opcional, si no se proporciona se usará el del localStorage)
+ * @returns La respuesta del servidor con la información de la wallet creada o existente
  */
-export const createOrGetUserWallet = async (userId: string, email: string, accessToken: string) => {
+export const createOrGetUserWallet = async (userId: string, email: string, accessToken?: string) => {
   try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/login`, {
+    const response = await fetch(`${API_URL}/api/login`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`
-      },
+      headers: createAuthHeaders(accessToken),
       body: JSON.stringify({ userId, email })
     });
 

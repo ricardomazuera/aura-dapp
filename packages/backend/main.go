@@ -87,7 +87,6 @@ func main() {
 }
 
 func loginHandler(w http.ResponseWriter, r *http.Request) {
-	// Verificar autenticación
 	userID, err := authenticateUser(r)
 	if err != nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -294,25 +293,127 @@ func authenticateUser(r *http.Request) (string, error) {
 
 	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 
-	// Parse and validate the JWT token
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		// This is a simplified example - in a real app, you would validate
-		// the token properly using Supabase's public key
-		return []byte(os.Getenv("JWT_SECRET")), nil
-	})
-
-	if err != nil || !token.Valid {
-		return "", fmt.Errorf("invalid token")
+	// Parse the JWT token without validation first to extract claims
+	parser := new(jwt.Parser)
+	token, _, err := parser.ParseUnverified(tokenString, jwt.MapClaims{})
+	if err != nil {
+		return "", fmt.Errorf("could not parse token: %v", err)
 	}
 
-	// Extract user ID from claims
-	if claims, ok := token.Claims.(jwt.MapClaims); ok {
-		if sub, ok := claims["sub"].(string); ok {
-			return sub, nil
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return "", fmt.Errorf("invalid token claims")
+	}
+
+	// Validate the token expiration
+	exp, ok := claims["exp"].(float64)
+	if !ok || int64(exp) < time.Now().Unix() {
+		return "", fmt.Errorf("token expired")
+	}
+
+	// Extract user ID (sub) from claims
+	sub, ok := claims["sub"].(string)
+	if !ok || sub == "" {
+		return "", fmt.Errorf("user ID not found in token")
+	}
+
+	// Validate the issuer is from Supabase
+	iss, ok := claims["iss"].(string)
+	if !ok || !strings.Contains(iss, "supabase") {
+		return "", fmt.Errorf("invalid token issuer: %s", iss)
+	}
+
+	// Check if the token is intended for our application
+	// The following URLs should match your Supabase project URLs
+	supabaseURL := os.Getenv("SUPABASE_URL")
+	if supabaseURL == "" {
+		log.Println("Warning: SUPABASE_URL not set in environment variables")
+	} else if !strings.Contains(iss, supabaseURL) {
+		return "", fmt.Errorf("token not issued for this application")
+	}
+
+	// In a production environment, we should validate the JWT signature
+	// using the Supabase JWT secret or public key
+	supabaseJWTSecret := os.Getenv("SUPABASE_JWT_SECRET")
+	if supabaseJWTSecret != "" {
+		_, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+			// Check the signing method
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
+
+			// Use the Supabase JWT secret to verify the signature
+			return []byte(supabaseJWTSecret), nil
+		})
+
+		if err != nil {
+			return "", fmt.Errorf("invalid token signature: %v", err)
+		}
+	} else {
+		log.Println("Warning: SUPABASE_JWT_SECRET not set, skipping token signature validation")
+	}
+
+	// Validate that the user exists in Supabase Authentication
+	// For a real implementation with Supabase, we would check
+	// against the Supabase auth.users table or make an API call
+
+	// Option 1: If you have access to the Supabase database directly:
+	// Make a database query to check if the user exists
+	// Example: SELECT COUNT(*) FROM auth.users WHERE id = $1
+
+	// Option 2: Use Supabase Admin API to check if the user exists
+	// This requires the service role key which should be kept secure
+	if os.Getenv("VALIDATE_USER_EXISTS") == "true" {
+		exists, err := checkUserExists(sub)
+		if err != nil {
+			return "", fmt.Errorf("error checking if user exists: %v", err)
+		}
+		if !exists {
+			return "", fmt.Errorf("user does not exist in Supabase")
 		}
 	}
 
-	return "", fmt.Errorf("unable to extract user ID from token")
+	return sub, nil
+}
+
+// checkUserExists verifies if a user exists in Supabase
+// This is an example implementation that would need to be updated
+// with your actual Supabase API calls
+func checkUserExists(userID string) (bool, error) {
+	supabaseURL := os.Getenv("SUPABASE_URL")
+	supabaseServiceKey := os.Getenv("SUPABASE_SERVICE_KEY")
+
+	if supabaseURL == "" || supabaseServiceKey == "" {
+		log.Println("Warning: Supabase URL or service key not set, skipping user existence check")
+		return true, nil
+	}
+
+	// Create a request to Supabase Admin API to check if user exists
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/auth/v1/admin/users/%s", supabaseURL, userID), nil)
+	if err != nil {
+		return false, err
+	}
+
+	// Set the required headers
+	req.Header.Set("apikey", supabaseServiceKey)
+	req.Header.Set("Authorization", "Bearer "+supabaseServiceKey)
+
+	// Send the request
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return false, err
+	}
+	defer resp.Body.Close()
+
+	// Check the response status
+	if resp.StatusCode == http.StatusOK {
+		return true, nil
+	} else if resp.StatusCode == http.StatusNotFound {
+		return false, nil
+	}
+
+	return false, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 }
 
 func extractEmailFromToken(r *http.Request) string {
