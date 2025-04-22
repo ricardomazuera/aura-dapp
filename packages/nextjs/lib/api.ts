@@ -4,6 +4,8 @@ export interface User {
   id: string;
   email: string;
   role: 'free' | 'pro';
+  firstName: string | null;
+  lastName: string | null;
 }
 
 export interface Habit {

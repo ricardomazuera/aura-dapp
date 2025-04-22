@@ -7,6 +7,8 @@ interface AuthState {
     id: string;
     email: string;
     role: 'free' | 'pro' | null;
+    firstName: string | null;
+    lastName: string | null;
   } | null;
   session: any;
   isLoading: boolean;
@@ -85,7 +87,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           user: {
             id: userWithRole.id,
             email: userWithRole.email,
-            role: userWithRole.role
+            role: userWithRole.role,
+            firstName: userWithRole.firstName,
+            lastName: userWithRole.lastName
           },
           session 
         });
@@ -208,7 +212,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             user: {
               id: userWithRole.id,
               email: userWithRole.email,
-              role: userWithRole.role
+              role: userWithRole.role,
+              firstName: userWithRole.firstName,
+              lastName: userWithRole.lastName
             },
             session 
           });
@@ -233,7 +239,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             user: {
               id: session.user.id,
               email: session.user.email as string,
-              role: 'free'
+              role: 'free',
+              firstName: null,
+              lastName: null
             },
             session 
           });

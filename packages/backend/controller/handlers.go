@@ -15,9 +15,11 @@ import (
 
 // Required types for controllers
 type User struct {
-	ID    string `json:"id"`
-	Email string `json:"email"`
-	Role  string `json:"role"`
+	ID        string `json:"id"`
+	Email     string `json:"email"`
+	Role      string `json:"role"`
+	FirstName string `json:"firstName"`
+	LastName  string `json:"lastName"`
 }
 
 type Habit struct {
@@ -143,14 +145,15 @@ func (c *Controller) GetUserRoleHandler(w http.ResponseWriter, r *http.Request) 
 	var user User
 	user.ID = userID
 	user.Email = extractEmailFromToken(r)
+	user.FirstName, user.LastName = extractNameFromToken(r)
 
 	// Check if user exists in the database
-	err = c.DB.QueryRow("SELECT role FROM users_profiles WHERE id = $1", userID).Scan(&user.Role)
+	err = c.DB.QueryRow("SELECT role, first_name, last_name FROM users_profiles WHERE id = $1", userID).Scan(&user.Role, &user.FirstName, &user.LastName)
 	if err == sql.ErrNoRows {
 		// User doesn't exist, create a new user profile with default role
 		user.Role = "free" // Default role
-		_, err := c.DB.Exec("INSERT INTO users_profiles (id, email, role) VALUES ($1, $2, $3)",
-			userID, user.Email, user.Role)
+		_, err := c.DB.Exec("INSERT INTO users_profiles (id, email, role, first_name, last_name) VALUES ($1, $2, $3, $4, $5)",
+			userID, user.Email, user.Role, user.FirstName, user.LastName)
 		if err != nil {
 			log.Printf("Error creating user profile: %v", err)
 			http.Error(w, "Database error", http.StatusInternalServerError)
@@ -160,9 +163,19 @@ func (c *Controller) GetUserRoleHandler(w http.ResponseWriter, r *http.Request) 
 		log.Printf("Database error: %v", err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
+	} else {
+		// User exists, but let's update first_name and last_name if they were null or if we got new values from token
+		if user.FirstName != "" || user.LastName != "" {
+			_, err = c.DB.Exec("UPDATE users_profiles SET first_name = COALESCE($1, first_name), last_name = COALESCE($2, last_name), email = COALESCE($3, email) WHERE id = $4",
+				nullIfEmpty(user.FirstName), nullIfEmpty(user.LastName), nullIfEmpty(user.Email), userID)
+			if err != nil {
+				log.Printf("Error updating user profile: %v", err)
+				// Not returning an error to the client as this is not critical
+			}
+		}
 	}
 
-	// Return user with role
+	// Return user with role and name
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(user)
 }
@@ -403,11 +416,13 @@ func authenticateUser(r *http.Request) (string, error) {
 	return sub, nil
 }
 
-func extractEmailFromToken(r *http.Request) string {
+// extractTokenClaims extracts claims from the JWT token in the Authorization header
+func extractTokenClaims(r *http.Request) (jwt.MapClaims, bool) {
 	// Get token from Authorization header
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
-		return ""
+		log.Println("No Authorization header found")
+		return nil, false
 	}
 
 	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
@@ -415,19 +430,144 @@ func extractEmailFromToken(r *http.Request) string {
 	// Parse token without validation
 	token, _, err := new(jwt.Parser).ParseUnverified(tokenString, jwt.MapClaims{})
 	if err != nil {
+		log.Printf("Error parsing token: %v", err)
+		return nil, false
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		log.Println("Invalid token claims")
+		return nil, false
+	}
+
+	return claims, true
+}
+
+func extractEmailFromToken(r *http.Request) string {
+	claims, ok := extractTokenClaims(r)
+	if !ok {
 		return ""
 	}
 
 	// Extract email from claims
-	if claims, ok := token.Claims.(jwt.MapClaims); ok {
-		if email, ok := claims["email"].(string); ok {
-			return email
-		}
+	if email, ok := claims["email"].(string); ok {
+		return email
 	}
 
 	return ""
 }
 
+func extractNameFromToken(r *http.Request) (string, string) {
+	claims, ok := extractTokenClaims(r)
+	if !ok {
+		return "", ""
+	}
+
+	// Extract name from claims
+	var firstName, lastName string
+
+	// Log the claims for debugging
+	log.Printf("Token claims: %+v", claims)
+
+	// Try to get user_metadata first (where OAuth providers store data)
+	if userMetadata, ok := claims["user_metadata"].(map[string]interface{}); ok {
+		log.Printf("User metadata found: %+v", userMetadata)
+
+		// Google typically stores as full_name or name
+		if fullName, ok := userMetadata["full_name"].(string); ok {
+			log.Printf("Full name from metadata: %s", fullName)
+			parts := strings.Split(fullName, " ")
+			if len(parts) > 0 {
+				firstName = parts[0]
+				if len(parts) > 1 {
+					lastName = strings.Join(parts[1:], " ")
+				}
+			}
+			log.Printf("Extracted from full_name - firstName: %s, lastName: %s", firstName, lastName)
+			return firstName, lastName
+		}
+
+		// Try name field
+		if name, ok := userMetadata["name"].(string); ok {
+			log.Printf("Name from metadata: %s", name)
+			parts := strings.Split(name, " ")
+			if len(parts) > 0 {
+				firstName = parts[0]
+				if len(parts) > 1 {
+					lastName = strings.Join(parts[1:], " ")
+				}
+			}
+			log.Printf("Extracted from name - firstName: %s, lastName: %s", firstName, lastName)
+			return firstName, lastName
+		}
+
+		// Try explicit first_name and last_name fields
+		if fn, ok := userMetadata["first_name"].(string); ok {
+			firstName = fn
+			log.Printf("Found first_name in metadata: %s", firstName)
+		} else if fn, ok := userMetadata["given_name"].(string); ok {
+			firstName = fn
+			log.Printf("Found given_name in metadata: %s", firstName)
+		}
+
+		if ln, ok := userMetadata["last_name"].(string); ok {
+			lastName = ln
+			log.Printf("Found last_name in metadata: %s", lastName)
+		} else if ln, ok := userMetadata["family_name"].(string); ok {
+			lastName = ln
+			log.Printf("Found family_name in metadata: %s", lastName)
+		}
+	} else {
+		log.Println("No user_metadata found in token")
+	}
+
+	// Try root level name claims
+	if firstName == "" {
+		if fn, ok := claims["given_name"].(string); ok {
+			firstName = fn
+			log.Printf("Found given_name at root level: %s", firstName)
+		} else {
+			log.Println("No given_name found at root level")
+		}
+	}
+	if lastName == "" {
+		if ln, ok := claims["family_name"].(string); ok {
+			lastName = ln
+			log.Printf("Found family_name at root level: %s", lastName)
+		} else {
+			log.Println("No family_name found at root level")
+		}
+	}
+
+	log.Printf("Final extracted name - firstName: %s, lastName: %s", firstName, lastName)
+
+	// For debugging purposes, always set a name if none is found
+	if firstName == "" && lastName == "" {
+		// This is only for testing - remove in production
+		email := extractEmailFromToken(r)
+		if email != "" {
+			username := strings.Split(email, "@")[0]
+			parts := strings.Split(username, ".")
+			if len(parts) > 0 {
+				firstName = strings.Title(parts[0])
+				if len(parts) > 1 {
+					lastName = strings.Title(parts[1])
+				}
+				log.Printf("Created name from email - firstName: %s, lastName: %s", firstName, lastName)
+			}
+		}
+	}
+
+	return firstName, lastName
+}
+
 func generateID() string {
 	return fmt.Sprintf("%d", time.Now().UnixNano())
+}
+
+func nullIfEmpty(value string) interface{} {
+	if value == "" {
+		return nil
+	}
+	return value
 }

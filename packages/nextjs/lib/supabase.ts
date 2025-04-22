@@ -1,14 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Valores por defecto para desarrollo local si las variables de entorno no están definidas
+// Default values for local development if environment variables are not defined
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://your-project.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'your-anon-key';
 
-// Verificar si estamos en el navegador y si las variables están configuradas
+// Verify if we are in the browser and if the variables are configured
 if (typeof window !== 'undefined') {
   console.log('Supabase URL:', supabaseUrl);
   if (supabaseUrl === 'https://your-project.supabase.co') {
-    console.warn('⚠️ Supabase URL no configurada correctamente. Por favor verifica tu archivo .env.local');
+    console.warn('⚠️ Supabase URL not configured correctly. Please check your .env.local file');
   }
 }
 

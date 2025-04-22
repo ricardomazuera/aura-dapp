@@ -4,7 +4,7 @@ import React, { useCallback, useRef, useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bars3Icon, BugAntIcon } from "@heroicons/react/24/outline";
+import { BugAntIcon } from "@heroicons/react/24/outline";
 import { useOutsideClick } from "~~/hooks/scaffold-stark";
 import { CustomConnectButton } from "~~/components/scaffold-stark/CustomConnectButton";
 import { useTheme } from "next-themes";
@@ -15,21 +15,10 @@ import { useAccount, useNetwork, useProvider } from "@starknet-react/core";
 import { BlockIdentifier } from "starknet";
 import { Sun } from 'lucide-react';
 
-
-
-
 /**
  * Site header
  */
 export const Header = () => {
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const burgerMenuRef = useRef<HTMLDivElement>(null);
-
-  useOutsideClick(
-    burgerMenuRef,
-    useCallback(() => setIsDrawerOpen(false), []),
-  );
-
   const { targetNetwork } = useTargetNetwork();
   const isLocalNetwork = targetNetwork.network === devnet.network;
 
@@ -71,35 +60,10 @@ export const Header = () => {
   return (
     <div className=" lg:static top-0 navbar min-h-0 flex-shrink-0 justify-between z-20 px-0 sm:px-2">
       <div className="navbar-start w-auto lg:w-1/2 -mr-2">
-        <div className="lg:hidden dropdown" ref={burgerMenuRef}>
-          <label
-            tabIndex={0}
-            className={`ml-1 btn btn-ghost 
-              [@media(max-width:379px)]:!px-3 [@media(max-width:379px)]:!py-1 
-              [@media(max-width:379px)]:!h-9 [@media(max-width:379px)]:!min-h-0
-              [@media(max-width:379px)]:!w-10
-              ${isDrawerOpen ? "hover:bg-secondary" : "hover:bg-transparent"}`}
-            onClick={() => {
-              setIsDrawerOpen((prevIsOpenState) => !prevIsOpenState);
-            }}
-          >
-            <Bars3Icon className="h-1/2" />
-          </label>
-          {isDrawerOpen && (
-            <ul
-              tabIndex={0}
-              className="menu menu-compact dropdown-content mt-3 p-2 shadow rounded-box w-52 bg-base-100"
-              onClick={() => {
-                setIsDrawerOpen(false);
-              }}
-            >
-            </ul>
-          )}
-        </div>
         <Link
           href="/"
           passHref
-          className="hidden lg:flex items-center gap-2 ml-4 mr-6 shrink-0"
+          className="flex items-center gap-2 ml-4 mr-6 shrink-0"
         >
           <div className="flex relative w-10 h-10">
             <Image
@@ -110,14 +74,11 @@ export const Header = () => {
             />
           </div>
           <div className="flex flex-col">
-
             <Link href="/" className="flex items-center space-x-2">
             aura
-            {/* <span className="text-2xl font-display text-aura-primary">aura</span> */}
-          </Link>
+            </Link>
           </div>
         </Link>
-
       </div>
       <div className="navbar-end flex-grow mr-2 gap-4">
         {status === "connected" && !isDeployed ? (
@@ -126,7 +87,6 @@ export const Header = () => {
           </span>
         ) : null}
         <CustomConnectButton />
-        {/* <FaucetButton /> */}
         <SwitchTheme
           className={`pointer-events-auto ${
             isLocalNetwork ? "mb-1 lg:mb-0" : ""
