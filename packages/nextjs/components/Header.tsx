@@ -21,6 +21,8 @@ import { Sun } from 'lucide-react';
 export const Header = () => {
   const { targetNetwork } = useTargetNetwork();
   const isLocalNetwork = targetNetwork.network === devnet.network;
+  const { resolvedTheme } = useTheme();
+  const isDarkMode = resolvedTheme === "dark";
 
   const { provider } = useProvider();
   const { address, status, chainId } = useAccount();
@@ -74,7 +76,7 @@ export const Header = () => {
             />
           </div>
           <div className="flex flex-col">
-            <Link href="/" className="flex items-center space-x-2">
+            <Link href="/" className={`flex items-center space-x-2 ${isDarkMode ? 'text-white' : 'text-gray-900'} font-medium`}>
             aura
             </Link>
           </div>

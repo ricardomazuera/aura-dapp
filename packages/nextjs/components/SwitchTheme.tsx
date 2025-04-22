@@ -21,7 +21,7 @@ export const SwitchTheme = ({ className }: { className?: string }) => {
 
   return (
     <div
-      className={`flex space-x-2 h-5 items-center justify-center text-sm border-l border-neutral px-4 ${className}`}
+      className={`flex space-x-2 h-5 items-center justify-center text-sm border-l ${isDarkMode ? 'border-gray-600' : 'border-neutral'} px-4 ${className}`}
     >
       {
         <label
@@ -29,8 +29,8 @@ export const SwitchTheme = ({ className }: { className?: string }) => {
           className={`swap swap-rotate ${!isDarkMode ? "swap-active" : ""}`}
           onClick={handleToggle}
         >
-          <SunIcon className="swap-on h-5 w-5" />
-          <MoonIcon className="swap-off h-5 w-5" />
+          <SunIcon className={`swap-on h-5 w-5 ${isDarkMode ? 'text-yellow-400' : 'text-gray-700'}`} />
+          <MoonIcon className={`swap-off h-5 w-5 ${isDarkMode ? 'text-white' : 'text-gray-500'}`} />
         </label>
       }
     </div>
