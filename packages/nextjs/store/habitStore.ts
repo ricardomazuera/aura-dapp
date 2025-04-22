@@ -8,6 +8,7 @@ export interface Habit {
   daysCompleted: number;
   completed: boolean;
   createdAt: string;
+  lastTrackedDate?: string;
 }
 
 interface HabitState {

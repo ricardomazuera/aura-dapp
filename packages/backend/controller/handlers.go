@@ -21,12 +21,13 @@ type User struct {
 }
 
 type Habit struct {
-	ID            string    `json:"id"`
-	UserID        string    `json:"userId"`
-	Name          string    `json:"name"`
-	DaysCompleted int       `json:"daysCompleted"`
-	Completed     bool      `json:"completed"`
-	CreatedAt     time.Time `json:"createdAt"`
+	ID              string     `json:"id"`
+	UserID          string     `json:"userId"`
+	Name            string     `json:"name"`
+	DaysCompleted   int        `json:"daysCompleted"`
+	Completed       bool       `json:"completed"`
+	CreatedAt       time.Time  `json:"createdAt"`
+	LastTrackedDate *time.Time `json:"lastTrackedDate,omitempty"` // New property
 }
 
 type Wallet struct {
@@ -176,7 +177,7 @@ func (c *Controller) GetHabitsHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Get habits for user from database
 	rows, err := c.DB.Query(
-		"SELECT id, user_id, name, days_completed, completed, created_at FROM habits WHERE user_id = $1 ORDER BY created_at DESC",
+		"SELECT id, user_id, name, days_completed, completed, created_at, last_tracked_date FROM habits WHERE user_id = $1 ORDER BY created_at DESC",
 		userID,
 	)
 	if err != nil {
@@ -189,7 +190,7 @@ func (c *Controller) GetHabitsHandler(w http.ResponseWriter, r *http.Request) {
 	var habits []Habit
 	for rows.Next() {
 		var h Habit
-		if err := rows.Scan(&h.ID, &h.UserID, &h.Name, &h.DaysCompleted, &h.Completed, &h.CreatedAt); err != nil {
+		if err := rows.Scan(&h.ID, &h.UserID, &h.Name, &h.DaysCompleted, &h.Completed, &h.CreatedAt, &h.LastTrackedDate); err != nil {
 			log.Printf("Error scanning habit row: %v", err)
 			continue
 		}
@@ -304,10 +305,10 @@ func (c *Controller) UpdateHabitProgressHandler(w http.ResponseWriter, r *http.R
 	// Check if habit exists and belongs to the user
 	var habit Habit
 	err = c.DB.QueryRow(
-		"SELECT id, user_id, name, days_completed, completed, created_at FROM habits WHERE id = $1 AND user_id = $2",
+		"SELECT id, user_id, name, days_completed, completed, created_at, last_tracked_date FROM habits WHERE id = $1 AND user_id = $2",
 		habitID, userID,
 	).Scan(
-		&habit.ID, &habit.UserID, &habit.Name, &habit.DaysCompleted, &habit.Completed, &habit.CreatedAt,
+		&habit.ID, &habit.UserID, &habit.Name, &habit.DaysCompleted, &habit.Completed, &habit.CreatedAt, &habit.LastTrackedDate,
 	)
 
 	if err == sql.ErrNoRows {
@@ -319,6 +320,17 @@ func (c *Controller) UpdateHabitProgressHandler(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	// Check if the habit has already been tracked today
+	if habit.LastTrackedDate != nil {
+		lastTrackedDate := habit.LastTrackedDate.Format("2006-01-02")
+		today := time.Now().Format("2006-01-02")
+
+		if lastTrackedDate == today {
+			http.Error(w, "You've already tracked progress for this habit today", http.StatusConflict)
+			return
+		}
+	}
+
 	// Increment days completed
 	habit.DaysCompleted++
 
@@ -328,10 +340,14 @@ func (c *Controller) UpdateHabitProgressHandler(w http.ResponseWriter, r *http.R
 		habit.DaysCompleted = 7 // Cap at 7 days
 	}
 
+	// Update lastTrackedDate to current time
+	now := time.Now()
+	habit.LastTrackedDate = &now
+
 	// Update habit in database
 	_, err = c.DB.Exec(
-		"UPDATE habits SET days_completed = $1, completed = $2 WHERE id = $3",
-		habit.DaysCompleted, habit.Completed, habit.ID,
+		"UPDATE habits SET days_completed = $1, completed = $2, last_tracked_date = $3 WHERE id = $4",
+		habit.DaysCompleted, habit.Completed, habit.LastTrackedDate, habit.ID,
 	)
 	if err != nil {
 		log.Printf("Error updating habit: %v", err)

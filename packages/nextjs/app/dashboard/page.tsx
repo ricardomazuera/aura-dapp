@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '~~/store/authStore';
-import { useHabitStore } from '~~/store/habitStore';
+import { Habit, useHabitStore } from '~~/store/habitStore';
 import { PlusCircle } from 'lucide-react';
 import UserMenu from '~~/components/UserMenu';
 import { AuthGuard } from '~~/components/auth/AuthGuard';
@@ -12,6 +12,16 @@ export default function DashboardPage() {
   const { habits, isLoading, error, fetchHabits, updateProgress, addHabit, clearError, canCreateHabit } = useHabitStore();
   const [newHabitName, setNewHabitName] = useState('');
   const [showNewHabitForm, setShowNewHabitForm] = useState(false);
+
+  // Function to check if a habit has already been tracked today
+  const isTrackedToday = (habit: Habit) => {
+    if (!habit.lastTrackedDate) return false;
+    
+    const today = new Date().toDateString();
+    const lastTracked = new Date(habit.lastTrackedDate).toDateString();
+    
+    return today === lastTracked;
+  };
 
   useEffect(() => {
     const initPage = async () => {
@@ -154,10 +164,14 @@ export default function DashboardPage() {
                             {!habit.completed && (
                               <button
                                 onClick={() => updateProgress(habit.id)}
-                                className="text-aura-primary hover:text-aura-secondary"
-                                disabled={isLoading}
+                                className={`px-4 py-2 rounded-md transition-colors ${
+                                  isLoading || isTrackedToday(habit)
+                                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                    : 'bg-aura-primary text-white hover:bg-aura-secondary'
+                                }`}
+                                disabled={isLoading || isTrackedToday(habit)}
                               >
-                                Track Today
+                                {isTrackedToday(habit) ? 'Tracked Today' : 'Track Today'}
                               </button>
                             )}
                           </td>
