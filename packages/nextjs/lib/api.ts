@@ -238,3 +238,102 @@ export const createOrGetUserWallet = async (userId: string, email: string, acces
     throw error;
   }
 };
+
+// === NUEVAS FUNCIONES PARA PAGOS Y SUSCRIPCIONES ===
+
+/**
+ * Crea un intent de pago en el backend para preparar una suscripción
+ * @param email Email del usuario
+ * @param customerId ID del cliente de Stripe (opcional)
+ * @returns Objeto con clientSecret para inicializar el formulario de Stripe
+ */
+export const createPaymentIntent = async (email: string, customerId?: string) => {
+  try {
+    const authToken = getAuthToken();
+    if (!authToken) throw new Error('No authentication token available');
+    
+    const response = await fetch(`${API_URL}/api/payments/create-intent`, {
+      method: 'POST',
+      headers: createAuthHeaders(),
+      body: JSON.stringify({ email, customerId })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Failed to parse error' }));
+      throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error creating payment intent:', error);
+    throw error;
+  }
+};
+
+/**
+ * Confirma una suscripción con el ID del cliente y método de pago
+ * @param customerId ID del cliente de Stripe
+ * @param email Email del usuario
+ * @param paymentMethodId ID del método de pago (opcional)
+ * @returns Información de la suscripción creada
+ */
+export const confirmSubscription = async (customerId: string, email: string, paymentMethodId?: string) => {
+  try {
+    const authToken = getAuthToken();
+    if (!authToken) throw new Error('No authentication token available');
+    
+    const response = await fetch(`${API_URL}/api/payments/confirm-subscription`, {
+      method: 'POST',
+      headers: createAuthHeaders(),
+      body: JSON.stringify({ 
+        customerId,
+        email,
+        paymentMethodId 
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Failed to parse error' }));
+      throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    
+    // Si la suscripción fue exitosa, invalidamos la caché del rol del usuario
+    if (result.success && result.user_updated) {
+      apiCache.invalidate('user_role_');
+    }
+    
+    return result;
+  } catch (error) {
+    console.error('Error confirming subscription:', error);
+    throw error;
+  }
+};
+
+/**
+ * Obtiene la información de precios actual
+ * @returns Información de precios de las suscripciones
+ */
+export const getPricing = async () => {
+  try {
+    const response = await fetch(`${API_URL}/api/payments/pricing`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Failed to parse error' }));
+      throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error getting pricing information:', error);
+    throw error;
+  }
+};
+
+// === FIN DE NUEVAS FUNCIONES PARA PAGOS ===

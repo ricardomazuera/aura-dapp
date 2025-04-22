@@ -21,6 +21,7 @@ interface AuthState {
   getToken: () => string | null;
   isCheckingSession: boolean;
   lastSessionCheck: number;
+  upgradeUserRole: () => Promise<boolean>;
 }
 
 // Helper to save the token in localStorage
@@ -59,6 +60,49 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   
   // Method to get the current token
   getToken: () => getTokenFromStorage(),
+  
+  // Nueva función para actualizar el rol de usuario a premium después del pago exitoso
+  upgradeUserRole: async (): Promise<boolean> => {
+    try {
+      const token = getTokenFromStorage();
+      if (!token) {
+        console.error('No authentication token found');
+        return false;
+      }
+      
+      // Actualizar inmediatamente el estado local para mejorar la UX
+      if (get().user) {
+        set({ 
+          user: {
+            ...get().user as any,
+            role: 'pro' 
+          }
+        });
+      }
+      
+      // Llamar al backend para actualizar el rol del usuario
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL}/api/user/upgrade`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        console.error(`Error upgrading user role: ${response.statusText}`);
+        return false;
+      }
+      
+      // Volvemos a verificar la sesión para asegurarnos de tener los datos actualizados
+      await get().checkSession();
+      
+      return true;
+    } catch (error) {
+      console.error('Error upgrading user role:', error);
+      return false;
+    }
+  },
   
   // Function to handle auth redirects and new user setup
   handleAuthRedirect: async () => {

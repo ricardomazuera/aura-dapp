@@ -1,10 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useAuthStore } from '~~/store/authStore';
 import { Habit, useHabitStore } from '~~/store/habitStore';
-import { PlusCircle } from 'lucide-react';
+import { PlusCircle, Sparkles, CheckCircle } from 'lucide-react';
 import UserMenu from '~~/components/UserMenu';
+import UpgradePlanDialog from '~~/components/UpgradePlanDialog';
 import { AuthGuard } from '~~/components/auth/AuthGuard';
 import { useTheme } from 'next-themes';
 
@@ -13,8 +15,11 @@ export default function DashboardPage() {
   const { habits, isLoading, error, fetchHabits, updateProgress, addHabit, clearError, canCreateHabit } = useHabitStore();
   const [newHabitName, setNewHabitName] = useState('');
   const [showNewHabitForm, setShowNewHabitForm] = useState(false);
+  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
+  const [showPaymentSuccess, setShowPaymentSuccess] = useState(false);
   const { resolvedTheme } = useTheme();
   const isDarkMode = resolvedTheme === "dark";
+  const searchParams = useSearchParams();
 
   // Function to check if a habit has already been tracked today
   const isTrackedToday = (habit: Habit) => {
@@ -29,13 +34,30 @@ export default function DashboardPage() {
   useEffect(() => {
     const initPage = async () => {
       console.log("Initializing dashboard page");
-      // Ensure we have the latest authentication state
-      await checkSession();
-      await fetchHabits();
+      
+      // Verificar si existe el parámetro success=true en la URL (regreso de Stripe)
+      const success = searchParams.get('success');
+      if (success === 'true') {
+        // Si es exitoso, actualizar la sesión para obtener el nuevo rol
+        await checkSession();
+        await fetchHabits();
+        
+        // Mostrar notificación de éxito
+        setShowPaymentSuccess(true);
+        
+        // Ocultar la notificación después de 5 segundos
+        setTimeout(() => {
+          setShowPaymentSuccess(false);
+        }, 5000);
+      } else {
+        // Flujo normal
+        await checkSession();
+        await fetchHabits();
+      }
     };
     
     initPage();
-  }, [checkSession, fetchHabits]);
+  }, [checkSession, fetchHabits, searchParams]);
 
   const handleAddHabit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,10 +70,43 @@ export default function DashboardPage() {
     }
   };
 
+  // Function to handle the "New Habit" button click
+  const handleNewHabitClick = () => {
+    if (user?.role === 'free' && habits.length >= 1) {
+      // If free user has reached limit, show upgrade dialog
+      setShowUpgradeDialog(true);
+    } else {
+      // Otherwise show the form to create a new habit
+      setShowNewHabitForm(true);
+    }
+  };
+
   return (
     <AuthGuard>
+      {/* Upgrade Plan Dialog */}
+      <UpgradePlanDialog 
+        isOpen={showUpgradeDialog} 
+        onClose={() => setShowUpgradeDialog(false)} 
+      />
+
       <div className={`min-h-[calc(100vh-64px)] ${isDarkMode ? 'bg-gray-800' : 'bg-gray-50'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* Payment success notification */}
+          {showPaymentSuccess && (
+            <div className="mb-6 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md flex items-center justify-between" role="alert">
+              <div className="flex items-center">
+                <CheckCircle className="h-5 w-5 mr-3" />
+                <span>¡Felicidades! Tu cuenta ha sido actualizada a Premium. Ahora puedes crear hasta 5 hábitos simultáneamente.</span>
+              </div>
+              <button 
+                className="text-green-700"
+                onClick={() => setShowPaymentSuccess(false)}
+              >
+                <span className="text-xl">&times;</span>
+              </button>
+            </div>
+          )}
+          
           <div className="flex justify-between items-center mb-8">
             <h1 className={`text-2xl font-display ${isDarkMode ? 'text-white' : 'text-aura-gray-800'}`}>Your Habits</h1>
             <UserMenu />
@@ -77,43 +132,59 @@ export default function DashboardPage() {
             </div>
           ) : (
             <>
-              {user && canCreateHabit() && (
-                <div className="mb-6">
-                  {showNewHabitForm ? (
-                    <form onSubmit={handleAddHabit} className={`${isDarkMode ? 'bg-gray-700' : 'bg-white'} p-4 rounded-lg shadow flex items-center`}>
-                      <input
-                        type="text"
-                        placeholder="Enter habit name..."
-                        value={newHabitName}
-                        onChange={e => setNewHabitName(e.target.value)}
-                        className={`flex-1 border ${isDarkMode ? 'bg-gray-600 border-gray-500 text-white placeholder:text-gray-300' : 'bg-white border-gray-300 text-gray-900'} rounded py-2 px-4 focus:outline-none focus:ring-2 focus:ring-aura-primary`}
-                      />
-                      <button 
-                        type="submit" 
-                        className="ml-4 bg-aura-primary text-white px-4 py-2 rounded hover:bg-aura-secondary"
-                        disabled={isLoading}
-                      >
-                        Add Habit
-                      </button>
-                      <button 
-                        type="button"
-                        onClick={() => setShowNewHabitForm(false)}
-                        className={`ml-2 ${isDarkMode ? 'text-gray-300 hover:bg-gray-600' : 'text-gray-500 hover:bg-gray-100'} px-4 py-2 rounded`}
-                      >
-                        Cancel
-                      </button>
-                    </form>
-                  ) : (
-                    <button
-                      onClick={() => setShowNewHabitForm(true)}
-                      className="inline-flex items-center px-4 py-2 bg-aura-primary text-white rounded hover:bg-aura-secondary"
+              <div className="mb-6">
+                {showNewHabitForm && canCreateHabit() ? (
+                  <form onSubmit={handleAddHabit} className={`${isDarkMode ? 'bg-gray-700' : 'bg-white'} p-4 rounded-lg shadow flex items-center`}>
+                    <input
+                      type="text"
+                      placeholder="Enter habit name..."
+                      value={newHabitName}
+                      onChange={e => setNewHabitName(e.target.value)}
+                      className={`flex-1 border ${isDarkMode ? 'bg-gray-600 border-gray-500 text-white placeholder:text-gray-300' : 'bg-white border-gray-300 text-gray-900'} rounded py-2 px-4 focus:outline-none focus:ring-2 focus:ring-aura-primary`}
+                    />
+                    <button 
+                      type="submit" 
+                      className="ml-4 bg-aura-primary text-white px-4 py-2 rounded hover:bg-aura-secondary"
+                      disabled={isLoading}
                     >
-                      <PlusCircle className="mr-2 h-4 w-4" />
-                      New Habit
+                      Add Habit
                     </button>
-                  )}
-                </div>
-              )}
+                    <button 
+                      type="button"
+                      onClick={() => setShowNewHabitForm(false)}
+                      className={`ml-2 ${isDarkMode ? 'text-gray-300 hover:bg-gray-600' : 'text-gray-500 hover:bg-gray-100'} px-4 py-2 rounded`}
+                    >
+                      Cancel
+                    </button>
+                  </form>
+                ) : (
+                  // Always show the button, but the action will depend on the user's status
+                  user && (
+                    <div className={`${user.role === 'free' && habits.length >= 1 ? 'flex justify-center' : ''}`}>
+                      <button
+                        onClick={handleNewHabitClick}
+                        className={`inline-flex items-center px-6 py-3 rounded-lg ${
+                          user.role === 'free' && habits.length >= 1 
+                            ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 shadow-md' 
+                            : 'bg-aura-primary text-white hover:bg-aura-secondary'
+                        }`}
+                      >
+                        {user.role === 'free' && habits.length >= 1 ? (
+                          <>
+                            <Sparkles className="mr-2 h-5 w-5 animate-pulse" />
+                            <span className="font-medium">Upgrade to Add More Habits</span>
+                          </>
+                        ) : (
+                          <>
+                            <PlusCircle className="mr-2 h-4 w-4" />
+                            New Habit
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )
+                )}
+              </div>
               
               {habits.length > 0 ? (
                 <div className={`${isDarkMode ? 'bg-gray-700' : 'bg-white'} rounded-lg shadow overflow-hidden`}>
@@ -191,9 +262,9 @@ export default function DashboardPage() {
                   <p className={`${isDarkMode ? 'text-gray-300' : 'text-gray-500'} mb-4`}>
                     {user ? "You haven't created any habits yet. Start by creating your first habit!" : "Please log in to view your habits."}
                   </p>
-                  {user && canCreateHabit() && !showNewHabitForm && (
+                  {user && !showNewHabitForm && (
                     <button
-                      onClick={() => setShowNewHabitForm(true)}
+                      onClick={handleNewHabitClick}
                       className="inline-flex items-center px-4 py-2 bg-aura-primary text-white rounded hover:bg-aura-secondary"
                     >
                       <PlusCircle className="mr-2 h-4 w-4" />
