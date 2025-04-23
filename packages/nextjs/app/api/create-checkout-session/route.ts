@@ -4,7 +4,7 @@ import { cookies } from 'next/headers';
 import fs from 'fs/promises';
 import path from 'path';
 
-// Función para escribir logs en un archivo
+// Function to write logs to a file
 async function logToFile(message: string) {
   try {
     const logDir = path.join(process.cwd(), 'logs');
@@ -20,7 +20,7 @@ async function logToFile(message: string) {
   }
 }
 
-// Inicializamos Stripe con la clave privada
+// Initialize Stripe with the private key
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
   apiVersion: '2025-03-31.basil',
 });
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
 
     await logToFile(`📧 User email: ${userEmail}`);
 
-    // Obtener el ID de precio de Stripe (definido en el panel de Stripe)
+    // Get the Stripe price ID (defined in the Stripe dashboard)
     const priceId = process.env.STRIPE_PREMIUM_PRICE_ID;
     await logToFile(`💰 Using price ID: ${priceId}`);
 
@@ -47,7 +47,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Validar el formato del precio
+    // Validate the price format
     if (!priceId.startsWith('price_')) {
       await logToFile(`❌ Error: Invalid price ID format: ${priceId}`);
       return NextResponse.json(
@@ -56,13 +56,13 @@ export async function POST(request: Request) {
       );
     }
 
-    // Crear customer si es necesario
+    // Create customer if necessary
     let customerId: string | undefined;
 
     if (userEmail) {
       await logToFile(`🔍 Looking for existing customer with email: ${userEmail}`);
 
-      // Buscar si ya existe un cliente con este email
+      // Check if a customer already exists with this email
       const customers = await stripe.customers.list({
         email: userEmail,
         limit: 1,
@@ -72,7 +72,7 @@ export async function POST(request: Request) {
         customerId = customers.data[0].id;
         await logToFile(`✅ Found existing customer: ${customerId}`);
       } else {
-        // Crear un nuevo cliente
+        // Create a new customer
         await logToFile('➕ Creating new customer');
         const newCustomer = await stripe.customers.create({
           email: userEmail,
@@ -83,10 +83,10 @@ export async function POST(request: Request) {
       }
     }
 
-    // Crear una sesión de checkout
+    // Create a checkout session
     await logToFile('🔄 Creating checkout session');
 
-    // Obtener el token de autenticación si existe
+    // Get the authentication token if it exists
     const cookieStore = cookies();
     const authToken = cookieStore.get('aura_token')?.value;
 
@@ -101,7 +101,7 @@ export async function POST(request: Request) {
         },
       ],
       mode: 'subscription',
-      // Usar la nueva ruta de callback para procesar el resultado del pago
+      // Use the new callback route to process the payment result
       success_url: `${process.env.NEXT_PUBLIC_APP_URL}/checkout/callback?success=true&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/checkout/callback?canceled=true`,
       metadata: {
@@ -112,7 +112,7 @@ export async function POST(request: Request) {
       billing_address_collection: 'auto',
     };
 
-    // Asociar el cliente si existe
+    // Associate the customer if it exists
     if (customerId) {
       checkoutParams.customer = customerId;
       await logToFile(`👤 Associated customer ${customerId} with checkout session`);
@@ -122,7 +122,7 @@ export async function POST(request: Request) {
     await logToFile(`✅ Checkout session created: ${session.id}`);
     await logToFile(`🔗 Checkout URL: ${session.url}`);
 
-    // Devolver el ID de la sesión y la URL de checkout
+    // Return the session ID and checkout URL
     return NextResponse.json({
       id: session.id,
       url: session.url

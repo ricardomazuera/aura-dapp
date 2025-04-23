@@ -19,7 +19,7 @@ export default function UpgradePlanDialog({ isOpen, onClose }: UpgradePlanDialog
   const { user } = useAuthStore();
   const isDarkMode = resolvedTheme === 'dark';
 
-  // Obtener el token del localStorage solo en cliente
+  // Get token from localStorage only on client-side
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const storedToken = localStorage.getItem('aura_token');
@@ -27,7 +27,7 @@ export default function UpgradePlanDialog({ isOpen, onClose }: UpgradePlanDialog
     }
   }, []);
 
-  // Limpiar estados al cerrar el diálogo
+  // Clear states when closing the dialog
   useEffect(() => {
     if (!isOpen) {
       setErrorMessage('');
@@ -41,14 +41,14 @@ export default function UpgradePlanDialog({ isOpen, onClose }: UpgradePlanDialog
       setIsLoading(true);
       setErrorMessage('');
   
-      // Asegurar que estamos en el navegador y obtener el token directamente
+      // Make sure we're in the browser and get the token directly
       let token: string | null = null;
       if (typeof window !== 'undefined') {
         token = localStorage.getItem('aura_token');
       }
   
       if (!token) {
-        setErrorMessage('No se pudo autenticar. Por favor, intenta iniciar sesión nuevamente.');
+        setErrorMessage('Authentication failed. Please try logging in again.');
         return;
       }
   
@@ -69,11 +69,11 @@ export default function UpgradePlanDialog({ isOpen, onClose }: UpgradePlanDialog
         return;
       }
   
-      // Redirigir a la página de checkout de Stripe
+      // Redirect to Stripe checkout page
       window.location.href = data.url;
     } catch (error) {
-      console.error('Error iniciando el checkout:', error);
-      setErrorMessage('Ocurrió un error al iniciar el proceso de pago. Por favor, inténtalo de nuevo.');
+      console.error('Error starting checkout:', error);
+      setErrorMessage('An error occurred when starting the payment process. Please try again.');
     } finally {
       setIsLoading(false);
     }
