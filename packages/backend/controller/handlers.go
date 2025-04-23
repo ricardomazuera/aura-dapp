@@ -380,16 +380,12 @@ func (c *Controller) UpdateUserRoleHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	fmt.Println("User ID___ in _update role:", userID)
-
 	// Parse request body
 	var request struct {
 		Role        string `json:"role"`
 		CustomerId  string `json:"customerId,omitempty"`
 		FromWebhook bool   `json:"fromWebhook,omitempty"`
 	}
-
-	fmt.Println("role____ in _update role:", request.Role)
 
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 		log.Printf("Error decoding request: %v", err)
