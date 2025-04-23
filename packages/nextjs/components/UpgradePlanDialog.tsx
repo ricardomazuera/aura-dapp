@@ -16,29 +16,34 @@ export default function UpgradePlanDialog({ isOpen, onClose }: UpgradePlanDialog
   const [isLoading, setIsLoading] = useState(false);
   const [paymentStep, setPaymentStep] = useState<'info' | 'success'>('info');
   const [errorMessage, setErrorMessage] = useState('');
+  const [token, setToken] = useState<string | null>(null);
   const { resolvedTheme } = useTheme();
   const { user, refetchUser } = useAuthStore();
-  const isDarkMode = resolvedTheme === "dark";
+  const isDarkMode = resolvedTheme === 'dark';
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // Obtener el token del localStorage solo en cliente
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const storedToken = localStorage.getItem('aura_token');
+      setToken(storedToken);
+    }
+  }, []);
 
   // Verificar si el usuario viene de un checkout exitoso
   useEffect(() => {
     if (isOpen) {
       const success = searchParams.get('success');
       const canceled = searchParams.get('canceled');
-      
+
       if (success === 'true') {
         handlePaymentSuccess();
-        
-        // Limpiar los parámetros de URL
         const url = new URL(window.location.href);
         url.searchParams.delete('success');
         window.history.replaceState({}, '', url);
       } else if (canceled === 'true') {
         setErrorMessage('El proceso de pago fue cancelado. Puedes intentarlo nuevamente cuando desees.');
-        
-        // Limpiar los parámetros de URL
         const url = new URL(window.location.href);
         url.searchParams.delete('canceled');
         window.history.replaceState({}, '', url);
@@ -60,8 +65,18 @@ export default function UpgradePlanDialog({ isOpen, onClose }: UpgradePlanDialog
     try {
       setIsLoading(true);
       setErrorMessage('');
-      
-      // Crear una sesión de checkout en Stripe
+  
+      // Asegurar que estamos en el navegador y obtener el token directamente
+      let token: string | null = null;
+      if (typeof window !== 'undefined') {
+        token = localStorage.getItem('aura_token');
+      }
+  
+      if (!token) {
+        setErrorMessage('No se pudo autenticar. Por favor, intenta iniciar sesión nuevamente.');
+        return;
+      }
+  
       const response = await fetch('/api/create-checkout-session', {
         method: 'POST',
         headers: {
@@ -71,15 +86,14 @@ export default function UpgradePlanDialog({ isOpen, onClose }: UpgradePlanDialog
           email: user?.email || '',
         }),
       });
-
+  
       const data = await response.json();
-      
+  
       if (data.error) {
         setErrorMessage(data.error);
         return;
       }
-      
-      // Redirigir al usuario a la página de checkout de Stripe
+  
       window.location.href = data.url;
     } catch (error) {
       console.error('Error iniciando el checkout:', error);
@@ -88,9 +102,10 @@ export default function UpgradePlanDialog({ isOpen, onClose }: UpgradePlanDialog
       setIsLoading(false);
     }
   };
+  
 
   const handlePaymentSuccess = async () => {
-    // Recargar la información del usuario para actualizar su estado de suscripción
+    await updateRoleUser();
     await refetchUser();
     setPaymentStep('success');
   };
@@ -103,20 +118,19 @@ export default function UpgradePlanDialog({ isOpen, onClose }: UpgradePlanDialog
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
       >
-        <motion.div 
+        <motion.div
           className={`${isDarkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'} rounded-xl shadow-xl max-w-md w-full max-h-[90vh] flex flex-col`}
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.9, opacity: 0 }}
         >
-          {/* Encabezado - Fijo en la parte superior */}
           <div className="p-6 border-b border-gray-200 dark:border-gray-700">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-display flex items-center gap-2">
                 <Sparkles className="h-6 w-6 text-aura-primary" />
                 Upgrade to Premium
               </h2>
-              <button 
+              <button
                 onClick={onClose}
                 className={`${isDarkMode ? 'text-gray-400 hover:text-gray-300' : 'text-gray-500 hover:text-gray-700'} transition-colors`}
               >
@@ -124,7 +138,6 @@ export default function UpgradePlanDialog({ isOpen, onClose }: UpgradePlanDialog
               </button>
             </div>
 
-            {/* Mensaje de error */}
             {errorMessage && (
               <div className={`mt-4 ${isDarkMode ? 'bg-red-900/30 border-red-800' : 'bg-red-50 border-red-200'} border text-red-700 p-3 rounded-md`}>
                 {errorMessage}
@@ -132,29 +145,17 @@ export default function UpgradePlanDialog({ isOpen, onClose }: UpgradePlanDialog
             )}
           </div>
 
-          {/* Contenido con scroll si es necesario */}
           <div className="flex-1 overflow-y-auto p-6">
-            {/* Contenido según el paso */}
             {paymentStep === 'info' && (
               <>
                 <div className={`${isDarkMode ? 'bg-gray-700' : 'bg-gray-50'} p-4 rounded-lg mb-6`}>
                   <h3 className="font-semibold text-lg mb-2">Premium Benefits:</h3>
                   <ul className="space-y-2">
-                    <li className="flex items-start">
-                      <span className="text-aura-primary mr-2">✓</span>
-                      <span>Track up to 5 habits simultaneously</span>
-                    </li>
-                    <li className="flex items-start">
-                      <span className="text-aura-primary mr-2">✓</span>
-                      <span>After completing 5 habits, get 5 more slots</span>
-                    </li>
-                    <li className="flex items-start">
-                      <span className="text-aura-primary mr-2">✓</span>
-                      <span>Priority support</span>
-                    </li>
+                    <li className="flex items-start"><span className="text-aura-primary mr-2">✓</span><span>Track up to 5 habits simultaneously</span></li>
+                    <li className="flex items-start"><span className="text-aura-primary mr-2">✓</span><span>After completing 5 habits, get 5 more slots</span></li>
+                    <li className="flex items-start"><span className="text-aura-primary mr-2">✓</span><span>Priority support</span></li>
                   </ul>
                 </div>
-                
                 <div className="text-center mb-6">
                   <div className="text-3xl font-bold text-aura-primary mb-1">$6.99<span className="text-base font-normal">/month</span></div>
                   <p className={`${isDarkMode ? 'text-gray-300' : 'text-gray-500'} text-sm`}>Cancel anytime</p>
@@ -171,7 +172,6 @@ export default function UpgradePlanDialog({ isOpen, onClose }: UpgradePlanDialog
             )}
           </div>
 
-          {/* Botones - Fijos en la parte inferior */}
           <div className="p-6 border-t border-gray-200 dark:border-gray-700">
             {paymentStep === 'info' && (
               <button
@@ -181,7 +181,7 @@ export default function UpgradePlanDialog({ isOpen, onClose }: UpgradePlanDialog
               >
                 {isLoading ? 'Processing...' : (
                   <>
-                    <CreditCard className="h-5 w-5" /> 
+                    <CreditCard className="h-5 w-5" />
                     Continue to payment
                   </>
                 )}

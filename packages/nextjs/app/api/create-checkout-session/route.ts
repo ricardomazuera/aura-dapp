@@ -28,11 +28,10 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
 export async function POST(request: Request) {
   try {
     await logToFile('🚀 Starting create-checkout-session request');
-    const cookieStore = cookies();
-
-
+    
     const body = await request.json();
     const userEmail = body.email || '';
+
 
     await logToFile(`📧 User email: ${userEmail}`);
 
@@ -98,6 +97,9 @@ export async function POST(request: Request) {
       mode: 'subscription',
       success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?success=true`,
       cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?canceled=true`,
+      metadata: {
+        user_email: userEmail
+      },
       allow_promotion_codes: true,
       billing_address_collection: 'auto',
     };

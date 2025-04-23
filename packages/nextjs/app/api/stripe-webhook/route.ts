@@ -29,13 +29,21 @@ async function updateUserRole(token: string, customerId?: string) {
   try {
     await logToFile(`🔄 Updating user role with token: ${token.substring(0, 10)}...`);
     
-    const response = await fetch(`${process.env.BACKEND_API_URL}/api/user/upgrade`, {
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8080';
+    const upgradeUrl = `${backendUrl}/api/user/upgrade`;
+    
+    await logToFile(`🔄 Making API call to: ${upgradeUrl}`);
+    
+    const response = await fetch(upgradeUrl, {
       method: 'PUT',
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ customerId }) // Incluimos el customerId si está disponible
+      body: JSON.stringify({ 
+        customerId,
+        fromWebhook: true 
+      })
     });
 
     if (!response.ok) {
