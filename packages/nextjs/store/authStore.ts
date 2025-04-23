@@ -21,8 +21,8 @@ interface AuthState {
   getToken: () => string | null;
   isCheckingSession: boolean;
   lastSessionCheck: number;
-  upgradeUserRole: () => Promise<boolean>;
   refetchUser: () => Promise<void>;
+  updateRoleUser: (role: 'free' | 'pro') => Promise<boolean>;
 }
 
 // Helper to save the token in localStorage
@@ -62,48 +62,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   // Method to get the current token
   getToken: () => getTokenFromStorage(),
   
-  // Nueva función para actualizar el rol de usuario a premium después del pago exitoso
-  upgradeUserRole: async (): Promise<boolean> => {
-    try {
-      const token = getTokenFromStorage();
-      if (!token) {
-        console.error('No authentication token found');
-        return false;
-      }
-      
-      // Actualizar inmediatamente el estado local para mejorar la UX
-      if (get().user) {
-        set({ 
-          user: {
-            ...get().user as any,
-            role: 'pro' 
-          }
-        });
-      }
-      
-      // Llamar al backend para actualizar el rol del usuario
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL}/api/user/upgrade`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (!response.ok) {
-        console.error(`Error upgrading user role: ${response.statusText}`);
-        return false;
-      }
-      
-      // Volvemos a verificar la sesión para asegurarnos de tener los datos actualizados
-      await get().checkSession();
-      
-      return true;
-    } catch (error) {
-      console.error('Error upgrading user role:', error);
-      return false;
-    }
-  },
+
   
   // Nuevo método para recargar los datos del usuario desde el servidor
   refetchUser: async (): Promise<void> => {
@@ -142,6 +101,74 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch (error) {
       console.error('Error refetching user data:', error);
       // No actualizamos el estado de error para evitar romper la experiencia de usuario
+    }
+  },
+  
+  // Función para actualizar el rol del usuario
+  updateRoleUser: async (role: 'free' | 'pro'): Promise<boolean> => {
+    try {
+      const token = getTokenFromStorage();
+      if (!token) {
+        console.error('No authentication token found');
+        return false;
+      }
+      
+      // Actualizar inmediatamente el estado local para mejorar la UX
+      if (get().user) {
+        set({ 
+          user: {
+            ...get().user as any,
+            role: role 
+          }
+        });
+      }
+      
+      // Llamar al endpoint en el backend para actualizar el rol del usuario
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL}/api/user/role`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ role })
+      });
+      
+      if (!response.ok) {
+        console.error(`Error updating user role: ${response.statusText}`);
+        
+        // Revertir el cambio local si la operación falló
+        if (get().user) {
+          set({ 
+            user: {
+              ...get().user as any,
+              role: get().user.role
+            }
+          });
+        }
+        return false;
+      }
+      
+      const data = await response.json();
+      console.log('User role updated successfully:', data);
+      
+      // Volvemos a cargar los datos del usuario para asegurarnos de tener la información más actualizada
+      await get().refetchUser();
+      
+      return true;
+    } catch (error) {
+      console.error('Error updating user role:', error);
+      
+      // Revertir el cambio local si la operación falló
+      if (get().user) {
+        set({ 
+          user: {
+            ...get().user as any,
+            role: get().user.role
+          }
+        });
+      }
+      
+      return false;
     }
   },
   

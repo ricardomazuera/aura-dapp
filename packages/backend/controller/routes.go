@@ -17,6 +17,7 @@ func SetupRoutes(db *sql.DB) http.Handler {
 
 	// Configure routes
 	mux.HandleFunc("GET /api/user/role", controller.GetUserRoleHandler)
+	mux.HandleFunc("PUT /api/user/role", controller.UpdateUserRoleHandler)
 	mux.HandleFunc("GET /api/habits", controller.GetHabitsHandler)
 	mux.HandleFunc("POST /api/habits", controller.CreateHabitHandler)
 	mux.HandleFunc("PUT /api/habits/{habitId}/progress", controller.UpdateHabitProgressHandler)

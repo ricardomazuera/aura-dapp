@@ -2,10 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Sparkles, CheckCircle, CreditCard } from 'lucide-react';
+import { X, Sparkles, CreditCard } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useAuthStore } from '~~/store/authStore';
-import { useRouter, useSearchParams } from 'next/navigation';
 
 interface UpgradePlanDialogProps {
   isOpen: boolean;
@@ -14,14 +13,11 @@ interface UpgradePlanDialogProps {
 
 export default function UpgradePlanDialog({ isOpen, onClose }: UpgradePlanDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
-  const [paymentStep, setPaymentStep] = useState<'info' | 'success'>('info');
   const [errorMessage, setErrorMessage] = useState('');
   const [token, setToken] = useState<string | null>(null);
   const { resolvedTheme } = useTheme();
-  const { user, refetchUser } = useAuthStore();
+  const { user } = useAuthStore();
   const isDarkMode = resolvedTheme === 'dark';
-  const router = useRouter();
-  const searchParams = useSearchParams();
 
   // Obtener el token del localStorage solo en cliente
   useEffect(() => {
@@ -31,30 +27,9 @@ export default function UpgradePlanDialog({ isOpen, onClose }: UpgradePlanDialog
     }
   }, []);
 
-  // Verificar si el usuario viene de un checkout exitoso
-  useEffect(() => {
-    if (isOpen) {
-      const success = searchParams.get('success');
-      const canceled = searchParams.get('canceled');
-
-      if (success === 'true') {
-        handlePaymentSuccess();
-        const url = new URL(window.location.href);
-        url.searchParams.delete('success');
-        window.history.replaceState({}, '', url);
-      } else if (canceled === 'true') {
-        setErrorMessage('El proceso de pago fue cancelado. Puedes intentarlo nuevamente cuando desees.');
-        const url = new URL(window.location.href);
-        url.searchParams.delete('canceled');
-        window.history.replaceState({}, '', url);
-      }
-    }
-  }, [isOpen, searchParams]);
-
   // Limpiar estados al cerrar el diálogo
   useEffect(() => {
     if (!isOpen) {
-      setPaymentStep('info');
       setErrorMessage('');
     }
   }, [isOpen]);
@@ -94,6 +69,7 @@ export default function UpgradePlanDialog({ isOpen, onClose }: UpgradePlanDialog
         return;
       }
   
+      // Redirigir a la página de checkout de Stripe
       window.location.href = data.url;
     } catch (error) {
       console.error('Error iniciando el checkout:', error);
@@ -101,13 +77,6 @@ export default function UpgradePlanDialog({ isOpen, onClose }: UpgradePlanDialog
     } finally {
       setIsLoading(false);
     }
-  };
-  
-
-  const handlePaymentSuccess = async () => {
-    await updateRoleUser();
-    await refetchUser();
-    setPaymentStep('success');
   };
 
   return (
@@ -146,56 +115,33 @@ export default function UpgradePlanDialog({ isOpen, onClose }: UpgradePlanDialog
           </div>
 
           <div className="flex-1 overflow-y-auto p-6">
-            {paymentStep === 'info' && (
-              <>
-                <div className={`${isDarkMode ? 'bg-gray-700' : 'bg-gray-50'} p-4 rounded-lg mb-6`}>
-                  <h3 className="font-semibold text-lg mb-2">Premium Benefits:</h3>
-                  <ul className="space-y-2">
-                    <li className="flex items-start"><span className="text-aura-primary mr-2">✓</span><span>Track up to 5 habits simultaneously</span></li>
-                    <li className="flex items-start"><span className="text-aura-primary mr-2">✓</span><span>After completing 5 habits, get 5 more slots</span></li>
-                    <li className="flex items-start"><span className="text-aura-primary mr-2">✓</span><span>Priority support</span></li>
-                  </ul>
-                </div>
-                <div className="text-center mb-6">
-                  <div className="text-3xl font-bold text-aura-primary mb-1">$6.99<span className="text-base font-normal">/month</span></div>
-                  <p className={`${isDarkMode ? 'text-gray-300' : 'text-gray-500'} text-sm`}>Cancel anytime</p>
-                </div>
-              </>
-            )}
-
-            {paymentStep === 'success' && (
-              <div className="text-center py-4">
-                <CheckCircle className="h-16 w-16 mx-auto text-green-500 mb-4" />
-                <h3 className="text-xl font-semibold mb-2">Subscription Successful!</h3>
-                <p className="mb-6">Your account has been upgraded to Premium. You can now enjoy all the benefits.</p>
-              </div>
-            )}
+            <div className={`${isDarkMode ? 'bg-gray-700' : 'bg-gray-50'} p-4 rounded-lg mb-6`}>
+              <h3 className="font-semibold text-lg mb-2">Premium Benefits:</h3>
+              <ul className="space-y-2">
+                <li className="flex items-start"><span className="text-aura-primary mr-2">✓</span><span>Track up to 5 habits simultaneously</span></li>
+                <li className="flex items-start"><span className="text-aura-primary mr-2">✓</span><span>After completing 5 habits, get 5 more slots</span></li>
+                <li className="flex items-start"><span className="text-aura-primary mr-2">✓</span><span>Priority support</span></li>
+              </ul>
+            </div>
+            <div className="text-center mb-6">
+              <div className="text-3xl font-bold text-aura-primary mb-1">$6.99<span className="text-base font-normal">/month</span></div>
+              <p className={`${isDarkMode ? 'text-gray-300' : 'text-gray-500'} text-sm`}>Cancel anytime</p>
+            </div>
           </div>
 
           <div className="p-6 border-t border-gray-200 dark:border-gray-700">
-            {paymentStep === 'info' && (
-              <button
-                onClick={handleStartPayment}
-                disabled={isLoading}
-                className={`w-full flex items-center justify-center gap-3 py-3 px-4 rounded-lg font-medium bg-aura-primary text-white hover:bg-aura-secondary transition-colors ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
-              >
-                {isLoading ? 'Processing...' : (
-                  <>
-                    <CreditCard className="h-5 w-5" />
-                    Continue to payment
-                  </>
-                )}
-              </button>
-            )}
-
-            {paymentStep === 'success' && (
-              <button
-                onClick={onClose}
-                className="w-full py-3 px-4 rounded-lg font-medium bg-aura-primary text-white hover:bg-aura-secondary transition-colors"
-              >
-                Continue
-              </button>
-            )}
+            <button
+              onClick={handleStartPayment}
+              disabled={isLoading}
+              className={`w-full flex items-center justify-center gap-3 py-3 px-4 rounded-lg font-medium bg-aura-primary text-white hover:bg-aura-secondary transition-colors ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
+            >
+              {isLoading ? 'Processing...' : (
+                <>
+                  <CreditCard className="h-5 w-5" />
+                  Continue to payment
+                </>
+              )}
+            </button>
           </div>
         </motion.div>
       </motion.div>

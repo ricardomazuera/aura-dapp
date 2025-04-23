@@ -372,6 +372,95 @@ func (c *Controller) UpdateHabitProgressHandler(w http.ResponseWriter, r *http.R
 	json.NewEncoder(w).Encode(habit)
 }
 
+// UpdateUserRoleHandler handles requests to update a user's role
+func (c *Controller) UpdateUserRoleHandler(w http.ResponseWriter, r *http.Request) {
+	userID, err := authenticateUser(r)
+	if err != nil {
+		http.Error(w, "Unauthorized: "+err.Error(), http.StatusUnauthorized)
+		return
+	}
+
+	fmt.Println("User ID___ in _update role:", userID)
+
+	// Parse request body
+	var request struct {
+		Role        string `json:"role"`
+		CustomerId  string `json:"customerId,omitempty"`
+		FromWebhook bool   `json:"fromWebhook,omitempty"`
+	}
+
+	fmt.Println("role____ in _update role:", request.Role)
+
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		log.Printf("Error decoding request: %v", err)
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate role value
+	if request.Role != "" && request.Role != "free" && request.Role != "pro" {
+		http.Error(w, "Invalid role value", http.StatusBadRequest)
+		return
+	}
+
+	// If no role is provided in request, default to upgrading to pro
+	roleToUpdate := "pro"
+	if request.Role != "" {
+		roleToUpdate = request.Role
+	}
+
+	// Update the user's role in the database
+	_, err = c.DB.Exec("UPDATE users_profiles SET role = $1 WHERE id = $2",
+		roleToUpdate, userID)
+
+	if err != nil {
+		log.Printf("Error updating user role: %v", err)
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+
+	// Add customer_id if provided (for Stripe subscriptions)
+	if request.CustomerId != "" {
+		_, err = c.DB.Exec("UPDATE users_profiles SET stripe_customer_id = $1 WHERE id = $2",
+			request.CustomerId, userID)
+
+		if err != nil {
+			log.Printf("Error updating stripe customer ID: %v", err)
+			// We don't return an error here as the main operation (role update) was successful
+		}
+	}
+
+	// Log the successful role update
+	if request.FromWebhook {
+		log.Printf("User %s role updated to %s via webhook (customer ID: %s)",
+			userID, roleToUpdate, request.CustomerId)
+	} else {
+		log.Printf("User %s role updated to %s manually", userID, roleToUpdate)
+	}
+
+	// Return the updated user data
+	var user User
+	user.ID = userID
+	user.Role = roleToUpdate
+
+	// Get other user data
+	err = c.DB.QueryRow("SELECT email, first_name, last_name FROM users_profiles WHERE id = $1",
+		userID).Scan(&user.Email, &user.FirstName, &user.LastName)
+
+	if err != nil {
+		log.Printf("Error retrieving updated user: %v", err)
+		// Even if we encounter an error retrieving the full user data,
+		// we'll return what we have since the update was successful
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": "User role updated successfully",
+		"user":    user,
+	})
+}
+
 // Helper functions
 
 func authenticateUser(r *http.Request) (string, error) {

@@ -29,18 +29,25 @@ async function updateUserRole(token: string, customerId?: string) {
   try {
     await logToFile(`🔄 Updating user role with token: ${token.substring(0, 10)}...`);
     
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8080';
-    const upgradeUrl = `${backendUrl}/api/user/upgrade`;
+    // Buscar la URL del backend en varias variables de entorno o usar una URL por defecto
+    const backendUrl = 
+      process.env.BACKEND_API_URL || 
+      process.env.NEXT_PUBLIC_BACKEND_API_URL || 
+      'http://localhost:8080';
     
-    await logToFile(`🔄 Making API call to: ${upgradeUrl}`);
+    // Usar la nueva ruta /api/user/role
+    const updateRoleUrl = `${backendUrl}/api/user/role`;
     
-    const response = await fetch(upgradeUrl, {
+    await logToFile(`🔄 Making API call to: ${updateRoleUrl}`);
+    
+    const response = await fetch(updateRoleUrl, {
       method: 'PUT',
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ 
+        role: 'pro',
         customerId,
         fromWebhook: true 
       })
@@ -48,16 +55,16 @@ async function updateUserRole(token: string, customerId?: string) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      await logToFile(`❌ Failed to upgrade user: ${response.status} - ${errorText}`);
-      throw new Error(`Failed to upgrade user: ${response.statusText}`);
+      await logToFile(`❌ Failed to update user role: ${response.status} - ${errorText}`);
+      throw new Error(`Failed to update user role: ${response.statusText}`);
     }
 
     const result = await response.json();
-    await logToFile(`✅ User role upgrade successful: ${JSON.stringify(result)}`);
+    await logToFile(`✅ User role update successful: ${JSON.stringify(result)}`);
     return result;
   } catch (error) {
-    await logToFile(`❌ Error upgrading user role: ${(error as Error).message}`);
-    console.error('Error upgrading user role:', error);
+    await logToFile(`❌ Error updating user role: ${(error as Error).message}`);
+    console.error('Error updating user role:', error);
     throw error;
   }
 }

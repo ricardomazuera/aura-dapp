@@ -86,6 +86,12 @@ export async function POST(request: Request) {
     // Crear una sesión de checkout
     await logToFile('🔄 Creating checkout session');
 
+    // Obtener el token de autenticación si existe
+    const cookieStore = cookies();
+    const authToken = cookieStore.get('aura_token')?.value;
+
+    await logToFile(`🔑 Auth token found in cookies: ${authToken ? 'yes' : 'no'}`);
+
     const checkoutParams: Stripe.Checkout.SessionCreateParams = {
       payment_method_types: ['card'],
       line_items: [
@@ -95,10 +101,12 @@ export async function POST(request: Request) {
         },
       ],
       mode: 'subscription',
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?success=true`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?canceled=true`,
+      // Usar la nueva ruta de callback para procesar el resultado del pago
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/checkout/callback?success=true&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/checkout/callback?canceled=true`,
       metadata: {
-        user_email: userEmail
+        user_email: userEmail,
+        auth_token: authToken || ''
       },
       allow_promotion_codes: true,
       billing_address_collection: 'auto',
