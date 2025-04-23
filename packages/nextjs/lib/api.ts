@@ -135,7 +135,7 @@ export const getHabits = async (token?: string): Promise<Habit[]> => {
     
     const habitsData = await response.json();
     
-    // Save caché per 1 minute (habits can change more frequently)
+    // Save cache for 1 minute (habits can change more frequently)
     apiCache.set(cacheKey, habitsData, 60 * 1000);
     
     return habitsData;
@@ -193,11 +193,11 @@ export const updateHabitProgress = async (habitId: string, token?: string): Prom
 };
 
 /**
- * Envía la información del usuario al backend para crear una wallet
- * @param userId El ID del usuario de Supabase
- * @param email El correo del usuario
- * @param accessToken Token de acceso (opcional, si no se proporciona se usará el del localStorage)
- * @returns La respuesta del servidor con la información de la wallet creada o existente
+ * Sends user information to the backend to create a wallet
+ * @param userId The Supabase user ID
+ * @param email The user's email
+ * @param accessToken Access token (optional, if not provided the one from localStorage will be used)
+ * @returns The server response with created or existing wallet information
  */
 export const createOrGetUserWallet = async (userId: string, email: string, accessToken?: string) => {
   try {
@@ -239,13 +239,13 @@ export const createOrGetUserWallet = async (userId: string, email: string, acces
   }
 };
 
-// === NUEVAS FUNCIONES PARA PAGOS Y SUSCRIPCIONES ===
+// === NEW PAYMENT AND SUBSCRIPTION FUNCTIONS ===
 
 /**
- * Crea un intent de pago en el backend para preparar una suscripción
- * @param email Email del usuario
- * @param customerId ID del cliente de Stripe (opcional)
- * @returns Objeto con clientSecret para inicializar el formulario de Stripe
+ * Creates a payment intent in the backend to prepare a subscription
+ * @param email User's email
+ * @param customerId Stripe customer ID (optional)
+ * @returns Object with clientSecret to initialize the Stripe form
  */
 export const createPaymentIntent = async (email: string, customerId?: string) => {
   try {
@@ -271,11 +271,11 @@ export const createPaymentIntent = async (email: string, customerId?: string) =>
 };
 
 /**
- * Confirma una suscripción con el ID del cliente y método de pago
- * @param customerId ID del cliente de Stripe
- * @param email Email del usuario
- * @param paymentMethodId ID del método de pago (opcional)
- * @returns Información de la suscripción creada
+ * Confirms a subscription with customer ID and payment method
+ * @param customerId Stripe customer ID
+ * @param email User's email
+ * @param paymentMethodId Payment method ID (optional)
+ * @returns Information about the created subscription
  */
 export const confirmSubscription = async (customerId: string, email: string, paymentMethodId?: string) => {
   try {
@@ -299,7 +299,7 @@ export const confirmSubscription = async (customerId: string, email: string, pay
 
     const result = await response.json();
     
-    // Si la suscripción fue exitosa, invalidamos la caché del rol del usuario
+    // If the subscription was successful, invalidate the user role cache
     if (result.success && result.user_updated) {
       apiCache.invalidate('user_role_');
     }
@@ -312,8 +312,8 @@ export const confirmSubscription = async (customerId: string, email: string, pay
 };
 
 /**
- * Obtiene la información de precios actual
- * @returns Información de precios de las suscripciones
+ * Gets the current pricing information
+ * @returns Subscription pricing information
  */
 export const getPricing = async () => {
   try {
@@ -336,4 +336,4 @@ export const getPricing = async () => {
   }
 };
 
-// === FIN DE NUEVAS FUNCIONES PARA PAGOS ===
+// === END OF NEW PAYMENT FUNCTIONS ===

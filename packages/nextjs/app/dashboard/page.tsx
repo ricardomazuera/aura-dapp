@@ -36,22 +36,22 @@ export default function DashboardPage() {
     const initPage = async () => {
       console.log("Initializing dashboard page");
       
-      // Verificar si existe el parámetro success=true en la URL (regreso de Stripe)
+      // Check if the success=true parameter exists in the URL (return from Stripe)
       const success = searchParams.get('success');
       if (success === 'true') {
-        // Si es exitoso, actualizar la sesión para obtener el nuevo rol
+        // If successful, update the session to get the new role
         await checkSession();
         await fetchHabits();
         
-        // Mostrar notificación de éxito
+        // Show success notification
         setShowPaymentSuccess(true);
         
-        // Ocultar la notificación después de 5 segundos
+        // Hide the notification after 5 seconds
         setTimeout(() => {
           setShowPaymentSuccess(false);
         }, 5000);
       } else {
-        // Flujo normal
+        // Normal flow
         await checkSession();
         await fetchHabits();
       }
@@ -80,8 +80,8 @@ export default function DashboardPage() {
       // If user can create a habit, show the form
       setShowNewHabitForm(true);
     }
-    // Si es un usuario Pro sin slots disponibles, el botón estará deshabilitado
-    // y no haremos nada al hacer clic
+    // If a Pro user has no available slots, the button will be disabled
+    // and we won't do anything on click
   };
 
   return (
@@ -99,7 +99,7 @@ export default function DashboardPage() {
             <div className="mb-6 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md flex items-center justify-between" role="alert">
               <div className="flex items-center">
                 <CheckCircle className="h-5 w-5 mr-3" />
-                <span>¡Felicidades! Tu cuenta ha sido actualizada a Premium. Ahora puedes crear hasta 5 hábitos simultáneamente.</span>
+                <span>Congratulations! Your account has been upgraded to Premium. You can now create up to 5 habits simultaneously.</span>
               </div>
               <button 
                 className="text-green-700"
@@ -164,7 +164,7 @@ export default function DashboardPage() {
                   // Always show the button, but with different styles based on the user's status
                   user && (
                     <div className="flex flex-col items-center">
-                      {/* Botón con diferentes estilos según el caso */}
+                      {/* Button with different styles depending on the case */}
                       <button
                         onClick={handleNewHabitClick}
                         disabled={user.role === 'pro' && !habitLimitInfo.canCreate}
@@ -194,19 +194,19 @@ export default function DashboardPage() {
                         )}
                       </button>
                       
-                      {/* Mensaje informativo para usuarios Pro que han alcanzado el límite */}
+                      {/* Informative message for Pro users who have reached the limit */}
                       {user.role === 'pro' && !habitLimitInfo.canCreate && (
                         <div className={`mt-2 flex items-center ${isDarkMode ? 'text-gray-300' : 'text-gray-600'} text-sm`}>
                           <Info className="w-4 h-4 mr-1" />
-                          <span>Completa alguno de tus hábitos actuales para desbloquear un espacio adicional</span>
+                          <span>Complete one of your current habits to unlock an additional space</span>
                         </div>
                       )}
                       
-                      {/* Mensaje informativo para usuarios Pro con espacios disponibles */}
+                      {/* Informative message for Pro users with available spaces */}
                       {user.role === 'pro' && habitLimitInfo.canCreate && habitLimitInfo.habitsLeft < 3 && (
                         <div className={`mt-2 flex items-center ${isDarkMode ? 'text-gray-300' : 'text-gray-600'} text-sm`}>
                           <Info className="w-4 h-4 mr-1" />
-                          <span>Puedes crear {habitLimitInfo.habitsLeft} hábito{habitLimitInfo.habitsLeft !== 1 ? 's' : ''} más</span>
+                          <span>You can create {habitLimitInfo.habitsLeft} more habit{habitLimitInfo.habitsLeft !== 1 ? 's' : ''}</span>
                         </div>
                       )}
                     </div>

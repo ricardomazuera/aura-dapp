@@ -62,9 +62,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   // Method to get the current token
   getToken: () => getTokenFromStorage(),
   
-
-  
-  // Nuevo método para recargar los datos del usuario desde el servidor
+  // New method to reload user data from the server
   refetchUser: async (): Promise<void> => {
     try {
       const token = getTokenFromStorage();
@@ -75,17 +73,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       
       console.log('Refetching user data after subscription update');
       
-      // Obtener la sesión actual
+      // Get current session
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         console.error('No active session found');
         return;
       }
       
-      // Obtener los datos actualizados del usuario incluyendo su rol
+      // Get updated user data including their role
       const userWithRole = await getUserRole(token);
       
-      // Actualizar el estado con los datos frescos
+      // Update state with fresh data
       set({ 
         user: {
           id: userWithRole.id,
@@ -100,11 +98,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       console.log('User data refreshed successfully, new role:', userWithRole.role);
     } catch (error) {
       console.error('Error refetching user data:', error);
-      // No actualizamos el estado de error para evitar romper la experiencia de usuario
+      // We don't update the error state to avoid breaking the user experience
     }
   },
   
-  // Función para actualizar el rol del usuario
+  // Function to update the user's role
   updateRoleUser: async (role: 'free' | 'pro'): Promise<boolean> => {
     try {
       const token = getTokenFromStorage();
@@ -113,7 +111,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return false;
       }
       
-      // Actualizar inmediatamente el estado local para mejorar la UX
+      // Immediately update local state to improve UX
       if (get().user) {
         set({ 
           user: {
@@ -123,7 +121,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         });
       }
       
-      // Llamar al endpoint en el backend para actualizar el rol del usuario
+      // Call the backend endpoint to update the user's role
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL}/api/user/role`, {
         method: 'PUT',
         headers: {
@@ -136,7 +134,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (!response.ok) {
         console.error(`Error updating user role: ${response.statusText}`);
         
-        // Revertir el cambio local si la operación falló
+        // Revert the local change if the operation failed
         if (get().user) {
           set({ 
             user: {
@@ -151,14 +149,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const data = await response.json();
       console.log('User role updated successfully:', data);
       
-      // Volvemos a cargar los datos del usuario para asegurarnos de tener la información más actualizada
+      // Reload user data to ensure we have the most up-to-date information
       await get().refetchUser();
       
       return true;
     } catch (error) {
       console.error('Error updating user role:', error);
       
-      // Revertir el cambio local si la operación falló
+      // Revert the local change if the operation failed
       if (get().user) {
         set({ 
           user: {

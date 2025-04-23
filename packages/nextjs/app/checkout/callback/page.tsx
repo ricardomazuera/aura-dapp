@@ -7,25 +7,25 @@ import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 
 export default function CheckoutCallback() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
-  const [message, setMessage] = useState('Procesando tu pago...');
+  const [message, setMessage] = useState('Processing your payment...');
   const router = useRouter();
   const searchParams = useSearchParams();
   const { updateRoleUser, refetchUser } = useAuthStore();
   
-  // Controlar la redirección manualmente para asegurarnos que siempre ocurra
+  // Control redirection manually to ensure it always happens
   const [redirectCountdown, setRedirectCountdown] = useState(3);
 
   useEffect(() => {
-    // Asegurarse de que la redirección ocurra incluso si hay errores en el procesamiento
+    // Ensure redirection occurs even if there are errors in processing
     const redirectTimer = setTimeout(() => {
       console.log('Redirecting to dashboard after timeout');
       router.push('/dashboard');
-    }, 5000); // 5 segundos como fallback de seguridad
+    }, 5000); // 5 seconds as a safety fallback
     
     return () => clearTimeout(redirectTimer);
   }, [router]);
 
-  // Cuenta regresiva para la redirección
+  // Countdown for redirection
   useEffect(() => {
     if (status !== 'loading' && redirectCountdown > 0) {
       const countdownInterval = setInterval(() => {
@@ -46,12 +46,12 @@ export default function CheckoutCallback() {
   useEffect(() => {
     const handleCallback = async () => {
       try {
-        // Obtener los parámetros de la URL
+        // Get URL parameters
         const success = searchParams.get('success');
         const canceled = searchParams.get('canceled');
         const sessionId = searchParams.get('session_id');
         
-        // IMPORTANTE: Obtener el token de autenticación del localStorage
+        // IMPORTANT: Get the authentication token from localStorage
         let authToken = '';
         if (typeof window !== 'undefined') {
           authToken = localStorage.getItem('aura_token') || '';
@@ -64,11 +64,11 @@ export default function CheckoutCallback() {
           if (!authToken) {
             console.error('Auth token not found in localStorage');
             setStatus('error');
-            setMessage('Error de autenticación. No se pudo actualizar tu plan. Por favor, contacta con soporte.');
+            setMessage('Authentication error. Could not update your plan. Please contact support.');
             return;
           }
           
-          // Hacer la llamada directa al API del backend en lugar de usar updateRoleUser
+          // Make direct call to backend API instead of using updateRoleUser
           const backendUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8080';
           const updateRoleUrl = `${backendUrl}/api/user/role`;
           
@@ -89,27 +89,27 @@ export default function CheckoutCallback() {
           
           if (response.ok) {
             console.log('User role updated successfully');
-            // Actualizar los datos del usuario en el store
+            // Update user data in the store
             await refetchUser();
             setStatus('success');
-            setMessage('¡Tu suscripción ha sido activada con éxito! Ahora disfrutas de todos los beneficios premium.');
+            setMessage('Your subscription has been successfully activated! You now have access to all premium benefits.');
           } else {
             console.error('Failed to update user role:', response.status);
             setStatus('error');
-            setMessage('El pago se procesó correctamente, pero hubo un problema al actualizar tu plan. Por favor, contacta con soporte.');
+            setMessage('Payment was processed successfully, but there was a problem updating your plan. Please contact support.');
           }
         } else if (canceled === 'true') {
           setStatus('error');
-          setMessage('Has cancelado el proceso de pago. Puedes intentarlo nuevamente cuando lo desees.');
+          setMessage('You have canceled the payment process. You can try again whenever you want.');
         } else {
-          // Si no hay parámetros válidos
+          // If there are no valid parameters
           setStatus('error');
-          setMessage('No se pudo validar el estado del pago. Por favor, contacta con soporte si realizaste un pago.');
+          setMessage('Could not validate payment status. Please contact support if you made a payment.');
         }
       } catch (error) {
         console.error('Error processing checkout callback:', error);
         setStatus('error');
-        setMessage('Ocurrió un error inesperado. Por favor, contacta con soporte.');
+        setMessage('An unexpected error occurred. Please contact support.');
       }
     };
 
@@ -122,28 +122,28 @@ export default function CheckoutCallback() {
         {status === 'loading' && (
           <>
             <Loader2 className="h-16 w-16 mx-auto text-aura-primary animate-spin mb-4" />
-            <h2 className="text-2xl font-bold mb-2">Procesando</h2>
+            <h2 className="text-2xl font-bold mb-2">Processing</h2>
           </>
         )}
         
         {status === 'success' && (
           <>
             <CheckCircle className="h-16 w-16 mx-auto text-green-500 mb-4" />
-            <h2 className="text-2xl font-bold mb-2">¡Pago Exitoso!</h2>
+            <h2 className="text-2xl font-bold mb-2">Payment Successful!</h2>
           </>
         )}
         
         {status === 'error' && (
           <>
             <XCircle className="h-16 w-16 mx-auto text-red-500 mb-4" />
-            <h2 className="text-2xl font-bold mb-2">Error en el Pago</h2>
+            <h2 className="text-2xl font-bold mb-2">Payment Error</h2>
           </>
         )}
         
         <p className="text-gray-600 dark:text-gray-300 mb-6">{message}</p>
         
         <div className="text-sm text-gray-500 dark:text-gray-400">
-          Serás redirigido al dashboard en {redirectCountdown} {redirectCountdown === 1 ? 'segundo' : 'segundos'}...
+          You will be redirected to the dashboard in {redirectCountdown} {redirectCountdown === 1 ? 'second' : 'seconds'}...
         </div>
       </div>
     </div>
