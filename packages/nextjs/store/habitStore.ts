@@ -19,6 +19,7 @@ interface HabitState {
   addHabit: (name: string) => Promise<Habit | null>;
   updateProgress: (habitId: string) => Promise<Habit | null>;
   canCreateHabit: () => boolean;
+  getHabitLimitInfo: () => { canCreate: boolean; message: string; habitsLeft: number };
   clearError: () => void;
 }
 
@@ -133,7 +134,55 @@ export const useHabitStore = create<HabitState>((set, get) => ({
     
     if (!user) return false;
     
-    const maxHabits = user.role === 'pro' ? 5 : 1;
-    return habits.length < maxHabits;
+    // Para usuarios gratuitos, el límite sigue siendo 1
+    if (user.role === 'free') return habits.length < 1;
+    
+    // Para usuarios Pro:
+    // - Máximo inicial: 5 hábitos
+    // - Por cada hábito completado, se desbloquea un espacio adicional
+    if (user.role === 'pro') {
+      const baseLimit = 5;
+      const completedHabits = habits.filter(habit => habit.completed).length;
+      const activeHabits = habits.filter(habit => !habit.completed).length;
+      
+      // En lugar de comparar todos los hábitos, solo consideramos los activos (no completados)
+      // y verificamos si están dentro del límite (base + completados)
+      return activeHabits < baseLimit;
+    }
+    
+    return false;
+  },
+
+  // Nueva función para obtener mensajes informativos sobre los límites de hábitos
+  getHabitLimitInfo: () => {
+    const { user } = useAuthStore.getState();
+    const { habits } = get();
+    
+    if (!user) return { canCreate: false, message: '', habitsLeft: 0 };
+    
+    if (user.role === 'free') {
+      const habitsLeft = Math.max(0, 1 - habits.length);
+      return {
+        canCreate: habitsLeft > 0,
+        message: habitsLeft > 0 ? '' : 'Actualiza a Premium para crear más hábitos',
+        habitsLeft
+      };
+    }
+    
+    if (user.role === 'pro') {
+      const baseLimit = 5;
+      const activeHabits = habits.filter(habit => !habit.completed).length;
+      const habitsLeft = Math.max(0, baseLimit - activeHabits);
+      
+      return {
+        canCreate: habitsLeft > 0,
+        message: habitsLeft > 0 ? 
+          `Puedes crear ${habitsLeft} hábito${habitsLeft !== 1 ? 's' : ''} más` : 
+          'Completa alguno de tus hábitos actuales para desbloquear un espacio adicional',
+        habitsLeft
+      };
+    }
+    
+    return { canCreate: false, message: '', habitsLeft: 0 };
   }
 }));

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useAuthStore } from '~~/store/authStore';
 import { Habit, useHabitStore } from '~~/store/habitStore';
-import { PlusCircle, Sparkles, CheckCircle } from 'lucide-react';
+import { PlusCircle, Sparkles, CheckCircle, Info } from 'lucide-react';
 import UserMenu from '~~/components/UserMenu';
 import UpgradePlanDialog from '~~/components/UpgradePlanDialog';
 import { AuthGuard } from '~~/components/auth/AuthGuard';
@@ -12,7 +12,7 @@ import { useTheme } from 'next-themes';
 
 export default function DashboardPage() {
   const { user, checkSession } = useAuthStore();
-  const { habits, isLoading, error, fetchHabits, updateProgress, addHabit, clearError, canCreateHabit } = useHabitStore();
+  const { habits, isLoading, error, fetchHabits, updateProgress, addHabit, clearError, canCreateHabit, getHabitLimitInfo } = useHabitStore();
   const [newHabitName, setNewHabitName] = useState('');
   const [showNewHabitForm, setShowNewHabitForm] = useState(false);
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
@@ -20,6 +20,7 @@ export default function DashboardPage() {
   const { resolvedTheme } = useTheme();
   const isDarkMode = resolvedTheme === "dark";
   const searchParams = useSearchParams();
+  const habitLimitInfo = getHabitLimitInfo();
 
   // Function to check if a habit has already been tracked today
   const isTrackedToday = (habit: Habit) => {
@@ -75,10 +76,12 @@ export default function DashboardPage() {
     if (user?.role === 'free' && habits.length >= 1) {
       // If free user has reached limit, show upgrade dialog
       setShowUpgradeDialog(true);
-    } else {
-      // Otherwise show the form to create a new habit
+    } else if (canCreateHabit()) {
+      // If user can create a habit, show the form
       setShowNewHabitForm(true);
     }
+    // Si es un usuario Pro sin slots disponibles, el botón estará deshabilitado
+    // y no haremos nada al hacer clic
   };
 
   return (
@@ -158,14 +161,18 @@ export default function DashboardPage() {
                     </button>
                   </form>
                 ) : (
-                  // Always show the button, but the action will depend on the user's status
+                  // Always show the button, but with different styles based on the user's status
                   user && (
-                    <div className={`${user.role === 'free' && habits.length >= 1 ? 'flex justify-center' : ''}`}>
+                    <div className="flex flex-col items-center">
+                      {/* Botón con diferentes estilos según el caso */}
                       <button
                         onClick={handleNewHabitClick}
+                        disabled={user.role === 'pro' && !habitLimitInfo.canCreate}
                         className={`inline-flex items-center px-6 py-3 rounded-lg ${
                           user.role === 'free' && habits.length >= 1 
-                            ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 shadow-md' 
+                            ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 shadow-md'
+                          : user.role === 'pro' && !habitLimitInfo.canCreate
+                            ? `${isDarkMode ? 'bg-gray-600 text-gray-400' : 'bg-gray-300 text-gray-600'} cursor-not-allowed`
                             : 'bg-aura-primary text-white hover:bg-aura-secondary'
                         }`}
                       >
@@ -174,6 +181,11 @@ export default function DashboardPage() {
                             <Sparkles className="mr-2 h-5 w-5 animate-pulse" />
                             <span className="font-medium">Upgrade to Add More Habits</span>
                           </>
+                        ) : user.role === 'pro' && !habitLimitInfo.canCreate ? (
+                          <>
+                            <PlusCircle className="mr-2 h-4 w-4" />
+                            New Habit
+                          </>
                         ) : (
                           <>
                             <PlusCircle className="mr-2 h-4 w-4" />
@@ -181,6 +193,22 @@ export default function DashboardPage() {
                           </>
                         )}
                       </button>
+                      
+                      {/* Mensaje informativo para usuarios Pro que han alcanzado el límite */}
+                      {user.role === 'pro' && !habitLimitInfo.canCreate && (
+                        <div className={`mt-2 flex items-center ${isDarkMode ? 'text-gray-300' : 'text-gray-600'} text-sm`}>
+                          <Info className="w-4 h-4 mr-1" />
+                          <span>Completa alguno de tus hábitos actuales para desbloquear un espacio adicional</span>
+                        </div>
+                      )}
+                      
+                      {/* Mensaje informativo para usuarios Pro con espacios disponibles */}
+                      {user.role === 'pro' && habitLimitInfo.canCreate && habitLimitInfo.habitsLeft < 3 && (
+                        <div className={`mt-2 flex items-center ${isDarkMode ? 'text-gray-300' : 'text-gray-600'} text-sm`}>
+                          <Info className="w-4 h-4 mr-1" />
+                          <span>Puedes crear {habitLimitInfo.habitsLeft} hábito{habitLimitInfo.habitsLeft !== 1 ? 's' : ''} más</span>
+                        </div>
+                      )}
                     </div>
                   )
                 )}
@@ -200,9 +228,6 @@ export default function DashboardPage() {
                           </th>
                           <th scope="col" className={`px-6 py-3 text-left text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
                             Status
-                          </th>
-                          <th scope="col" className={`px-6 py-3 text-left text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-500'} uppercase tracking-wider`}>
-                            Days Remaining
                           </th>
                           <th scope="col" className="relative px-6 py-3">
                             <span className="sr-only">Actions</span>
@@ -231,9 +256,6 @@ export default function DashboardPage() {
                               }`}>
                                 {habit.completed ? 'Completed' : 'In Progress'}
                               </span>
-                            </td>
-                            <td className={`px-6 py-4 whitespace-nowrap text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
-                              {habit.completed ? '0' : 7 - habit.daysCompleted} days
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                               {!habit.completed && (

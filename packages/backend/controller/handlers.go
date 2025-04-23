@@ -253,23 +253,23 @@ func (c *Controller) CreateHabitHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Count existing habits
-	var habitCount int
-	err = c.DB.QueryRow("SELECT COUNT(*) FROM habits WHERE user_id = $1", userID).Scan(&habitCount)
+	// Count active habits (not completed)
+	var activeHabitCount int
+	err = c.DB.QueryRow("SELECT COUNT(*) FROM habits WHERE user_id = $1 AND completed = false", userID).Scan(&activeHabitCount)
 	if err != nil {
 		log.Printf("Database error counting habits: %v", err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
 
-	// Check if user has reached their habit limit
+	// Check if user has reached their habit limit (only counting active habits)
 	maxHabits := 1 // Default for free users
 	if userRole == "pro" {
 		maxHabits = 5
 	}
 
-	if habitCount >= maxHabits {
-		http.Error(w, "You have reached the maximum number of habits for your plan", http.StatusForbidden)
+	if activeHabitCount >= maxHabits {
+		http.Error(w, "You have reached the maximum number of active habits for your plan", http.StatusForbidden)
 		return
 	}
 
