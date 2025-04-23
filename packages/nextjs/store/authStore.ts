@@ -22,6 +22,7 @@ interface AuthState {
   isCheckingSession: boolean;
   lastSessionCheck: number;
   upgradeUserRole: () => Promise<boolean>;
+  refetchUser: () => Promise<void>;
 }
 
 // Helper to save the token in localStorage
@@ -101,6 +102,46 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch (error) {
       console.error('Error upgrading user role:', error);
       return false;
+    }
+  },
+  
+  // Nuevo método para recargar los datos del usuario desde el servidor
+  refetchUser: async (): Promise<void> => {
+    try {
+      const token = getTokenFromStorage();
+      if (!token) {
+        console.error('No authentication token found for refetching user data');
+        return;
+      }
+      
+      console.log('Refetching user data after subscription update');
+      
+      // Obtener la sesión actual
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        console.error('No active session found');
+        return;
+      }
+      
+      // Obtener los datos actualizados del usuario incluyendo su rol
+      const userWithRole = await getUserRole(token);
+      
+      // Actualizar el estado con los datos frescos
+      set({ 
+        user: {
+          id: userWithRole.id,
+          email: userWithRole.email,
+          role: userWithRole.role,
+          firstName: userWithRole.firstName,
+          lastName: userWithRole.lastName
+        },
+        session 
+      });
+      
+      console.log('User data refreshed successfully, new role:', userWithRole.role);
+    } catch (error) {
+      console.error('Error refetching user data:', error);
+      // No actualizamos el estado de error para evitar romper la experiencia de usuario
     }
   },
   

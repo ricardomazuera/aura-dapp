@@ -3,29 +3,48 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Sparkles, CheckCircle, CreditCard } from 'lucide-react';
-import { loadStripe } from '@stripe/stripe-js';
-import { Elements } from '@stripe/react-stripe-js';
 import { useTheme } from 'next-themes';
 import { useAuthStore } from '~~/store/authStore';
-import StripePaymentForm from './StripePaymentForm';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 interface UpgradePlanDialogProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-// Initialize Stripe with your publishable key
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '');
-
 export default function UpgradePlanDialog({ isOpen, onClose }: UpgradePlanDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
-  const [paymentStep, setPaymentStep] = useState<'info' | 'payment' | 'success'>('info');
-  const [clientSecret, setClientSecret] = useState('');
-  const [customerId, setCustomerId] = useState('');
+  const [paymentStep, setPaymentStep] = useState<'info' | 'success'>('info');
   const [errorMessage, setErrorMessage] = useState('');
   const { resolvedTheme } = useTheme();
-  const { user } = useAuthStore();
+  const { user, refetchUser } = useAuthStore();
   const isDarkMode = resolvedTheme === "dark";
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Verificar si el usuario viene de un checkout exitoso
+  useEffect(() => {
+    if (isOpen) {
+      const success = searchParams.get('success');
+      const canceled = searchParams.get('canceled');
+      
+      if (success === 'true') {
+        handlePaymentSuccess();
+        
+        // Limpiar los parámetros de URL
+        const url = new URL(window.location.href);
+        url.searchParams.delete('success');
+        window.history.replaceState({}, '', url);
+      } else if (canceled === 'true') {
+        setErrorMessage('El proceso de pago fue cancelado. Puedes intentarlo nuevamente cuando desees.');
+        
+        // Limpiar los parámetros de URL
+        const url = new URL(window.location.href);
+        url.searchParams.delete('canceled');
+        window.history.replaceState({}, '', url);
+      }
+    }
+  }, [isOpen, searchParams]);
 
   // Limpiar estados al cerrar el diálogo
   useEffect(() => {
@@ -42,8 +61,8 @@ export default function UpgradePlanDialog({ isOpen, onClose }: UpgradePlanDialog
       setIsLoading(true);
       setErrorMessage('');
       
-      // Obtener una SetupIntent para el pago
-      const response = await fetch('/api/create-payment-intent', {
+      // Crear una sesión de checkout en Stripe
+      const response = await fetch('/api/create-checkout-session', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -60,23 +79,20 @@ export default function UpgradePlanDialog({ isOpen, onClose }: UpgradePlanDialog
         return;
       }
       
-      setClientSecret(data.clientSecret);
-      setCustomerId(data.customerId);
-      setPaymentStep('payment');
+      // Redirigir al usuario a la página de checkout de Stripe
+      window.location.href = data.url;
     } catch (error) {
-      console.error('Error iniciando el pago:', error);
+      console.error('Error iniciando el checkout:', error);
       setErrorMessage('Ocurrió un error al iniciar el proceso de pago. Por favor, inténtalo de nuevo.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handlePaymentSuccess = () => {
+  const handlePaymentSuccess = async () => {
+    // Recargar la información del usuario para actualizar su estado de suscripción
+    await refetchUser();
     setPaymentStep('success');
-  };
-
-  const handlePaymentError = (message: string) => {
-    setErrorMessage(message);
   };
 
   return (
@@ -144,25 +160,6 @@ export default function UpgradePlanDialog({ isOpen, onClose }: UpgradePlanDialog
                   <p className={`${isDarkMode ? 'text-gray-300' : 'text-gray-500'} text-sm`}>Cancel anytime</p>
                 </div>
               </>
-            )}
-
-            {paymentStep === 'payment' && clientSecret && (
-              <Elements stripe={stripePromise} options={{ 
-                clientSecret,
-                appearance: { 
-                  theme: isDarkMode ? 'night' : 'stripe',
-                  variables: {
-                    colorPrimary: '#8b5cf6', // aura-primary
-                  } 
-                } 
-              }}>
-                <StripePaymentForm 
-                  clientSecret={clientSecret} 
-                  customerId={customerId}
-                  onSuccess={handlePaymentSuccess} 
-                  onError={handlePaymentError} 
-                />
-              </Elements>
             )}
 
             {paymentStep === 'success' && (

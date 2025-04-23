@@ -466,16 +466,11 @@ func extractNameFromToken(r *http.Request) (string, string) {
 	// Extract name from claims
 	var firstName, lastName string
 
-	// Log the claims for debugging
-	log.Printf("Token claims: %+v", claims)
-
 	// Try to get user_metadata first (where OAuth providers store data)
 	if userMetadata, ok := claims["user_metadata"].(map[string]interface{}); ok {
-		log.Printf("User metadata found: %+v", userMetadata)
 
 		// Google typically stores as full_name or name
 		if fullName, ok := userMetadata["full_name"].(string); ok {
-			log.Printf("Full name from metadata: %s", fullName)
 			parts := strings.Split(fullName, " ")
 			if len(parts) > 0 {
 				firstName = parts[0]
@@ -483,13 +478,11 @@ func extractNameFromToken(r *http.Request) (string, string) {
 					lastName = strings.Join(parts[1:], " ")
 				}
 			}
-			log.Printf("Extracted from full_name - firstName: %s, lastName: %s", firstName, lastName)
 			return firstName, lastName
 		}
 
 		// Try name field
 		if name, ok := userMetadata["name"].(string); ok {
-			log.Printf("Name from metadata: %s", name)
 			parts := strings.Split(name, " ")
 			if len(parts) > 0 {
 				firstName = parts[0]
